@@ -1,5 +1,6 @@
 from ._anvil_designer import Form1Template
 from anvil import *
+import anvil.users
 import anvil.server
 from anvil.js import window
 
@@ -7,6 +8,7 @@ from anvil.js import window
 class Form1(Form1Template):
   def __init__(self, **properties):
     super().__init__(**properties)
+    self.user = anvil.users.login_with_form()
     self._wizard_cells = []
     self._wizard_index = 0
     self.rows_panel.add_event_handler("x-save-cell", self._save_grid_cell)

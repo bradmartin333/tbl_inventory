@@ -1,5 +1,6 @@
 from ._anvil_designer import GridRowTemplate
 from anvil import *
+import anvil.users
 
 
 class GridRow(GridRowTemplate):

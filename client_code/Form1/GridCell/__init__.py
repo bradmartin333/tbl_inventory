@@ -1,5 +1,6 @@
 from ._anvil_designer import GridCellTemplate
 from anvil import *
+import anvil.users
 
 
 class GridCell(GridCellTemplate):
