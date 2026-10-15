@@ -207,22 +207,17 @@ class Form1(Form1Template):
   def _set_wizard_quantity(self, quantity):
     self.wizard_quantity_box.text = f"{quantity:g}"
 
-  def _set_wizard_fraction(self, fraction):
-    # Fractions replace the part after the whole number, so 2 then 3/4 gives 2.75.
-    whole = int(self._wizard_quantity_value())
-    self._set_wizard_quantity(whole + fraction)
-
   @handle("wizard_quarter_button", "click")
   def wizard_quarter_button_click(self, **event_args):
-    self._set_wizard_fraction(0.25)
+    self._set_wizard_quantity(0.25)
 
   @handle("wizard_half_button", "click")
   def wizard_half_button_click(self, **event_args):
-    self._set_wizard_fraction(0.5)
+    self._set_wizard_quantity(0.5)
 
   @handle("wizard_three_quarters_button", "click")
   def wizard_three_quarters_button_click(self, **event_args):
-    self._set_wizard_fraction(0.75)
+    self._set_wizard_quantity(0.75)
 
   @handle("wizard_plus_one_button", "click")
   def wizard_plus_one_button_click(self, **event_args):
