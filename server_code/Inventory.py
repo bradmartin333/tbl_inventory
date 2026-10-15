@@ -72,34 +72,18 @@ def _parse_quantity(raw_quantity):
   return quantity
 
 
-def _active_ordered(table, key_name):
+def _active_ordered(table):
   items = list(table.search(active=True))
   items.sort(key=lambda item: item["sort_order"] or 0)
   return items
-
-
-def _get_or_create_cell(row_key, column_key):
-  matches = list(app_tables.inventory_cells.search(
-    row_key=row_key,
-    column_key=column_key,
-  ))
-  if matches:
-    return matches[0]
-  return app_tables.inventory_cells.add_row(
-    row_key=row_key,
-    column_key=column_key,
-    quantity=0,
-    entered_by="",
-    entered_at=datetime(1970, 1, 1),
-  )
 
 
 @anvil.server.callable
 def get_inventory_grid():
   _ensure_default_grid()
   settings = _get_settings()
-  rows = _active_ordered(app_tables.inventory_rows, "row_key")
-  columns = _active_ordered(app_tables.inventory_columns, "column_key")
+  rows = _active_ordered(app_tables.inventory_rows)
+  columns = _active_ordered(app_tables.inventory_columns)
   saved_cells = {
     (cell["row_key"], cell["column_key"]): cell
     for cell in app_tables.inventory_cells.search()
@@ -160,40 +144,31 @@ def _split_labels(raw_text):
 
 def _reconcile_labels(table, labels, key_name):
   existing = list(table.search())
-  existing.sort(key=lambda item: item["sort_order"] or 0)
   by_label = {
     item["label"].strip().casefold(): item
     for item in existing
     if item["label"]
   }
-  assigned = [by_label.get(label.casefold()) for label in labels]
-  used_keys = {
-    item[key_name] for item in assigned if item is not None
-  }
+  used_keys = set()
 
   for index, label in enumerate(labels):
-    item = assigned[index]
+    item = by_label.get(label.casefold())
     if item is None:
-      item = next(
-        (candidate for candidate in existing if candidate[key_name] not in used_keys),
-        None,
+      # A new label gets a new identity so old values never appear under it.
+      item = table.add_row(
+        **{
+          key_name: uuid.uuid4().hex,
+          "label": label,
+          "sort_order": index + 1,
+          "active": True,
+        }
       )
-      if item is None:
-        item = table.add_row(
-          **{
-            key_name: uuid.uuid4().hex,
-            "label": label,
-            "sort_order": index + 1,
-            "active": True,
-          }
-        )
-        existing.append(item)
-      assigned[index] = item
-      used_keys.add(item[key_name])
+      existing.append(item)
 
     item["label"] = label
     item["sort_order"] = index + 1
     item["active"] = True
+    used_keys.add(item[key_name])
 
   for item in existing:
     if item[key_name] not in used_keys:
@@ -279,7 +254,20 @@ def _save_grid_values(initials, cell_values, skip_blank):
   entered_at = datetime.now()
   entry_id = uuid.uuid4().hex
   for row, column, quantity in values_to_save:
-    latest = _get_or_create_cell(row["row_key"], column["column_key"])
+    matches = list(app_tables.inventory_cells.search(
+      row_key=row["row_key"],
+      column_key=column["column_key"],
+    ))
+    if matches:
+      latest = matches[0]
+    else:
+      latest = app_tables.inventory_cells.add_row(
+        row_key=row["row_key"],
+        column_key=column["column_key"],
+        quantity=quantity,
+        entered_by=initials,
+        entered_at=entered_at,
+      )
     latest["quantity"] = quantity
     latest["entered_by"] = initials
     latest["entered_at"] = entered_at

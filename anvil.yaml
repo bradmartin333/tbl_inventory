@@ -1,163 +1,57 @@
 allow_embedding: false
 db_schema:
-  inventory_entries:
+  inventory_cells:
     client: none
     columns:
-    - admin_ui: {}
-      client_hidden: null
-      name: entry_id
-      type: string
-    - admin_ui: {}
-      client_hidden: null
-      name: item_key
-      type: string
-    - admin_ui: {}
-      client_hidden: null
-      name: item_name
-      type: string
-    - admin_ui: {}
-      client_hidden: null
-      name: quantity
-      type: number
-    - admin_ui: {}
-      client_hidden: null
-      name: entered_by
-      type: string
-    - admin_ui: {}
-      client_hidden: null
-      name: entered_at
-      type: datetime
-    indexes: []
+    - {name: row_key, type: string}
+    - {name: column_key, type: string}
+    - {name: quantity, type: number}
+    - {name: entered_by, type: string}
+    - {name: entered_at, type: datetime}
     server: full
-    title: Inventory entry history
-  inventory_items:
+    title: Latest inventory cells
+  inventory_columns:
     client: none
     columns:
-    - admin_ui: {}
-      client_hidden: null
-      name: item_key
-      type: string
-    - admin_ui: {}
-      client_hidden: null
-      name: name
-      type: string
-    - admin_ui: {}
-      client_hidden: null
-      name: unit
-      type: string
-    - admin_ui: {}
-      client_hidden: null
-      name: sort_order
-      type: number
-    - admin_ui: {}
-      client_hidden: null
-      name: active
-      type: bool
-    - admin_ui: {}
-      client_hidden: null
-      name: latest_quantity
-      type: number
-    - admin_ui: {}
-      client_hidden: null
-      name: latest_entered_by
-      type: string
-    - admin_ui: {}
-      client_hidden: null
-      name: latest_entered_at
-      type: datetime
-    indexes: []
+    - {name: column_key, type: string}
+    - {name: label, type: string}
+    - {name: sort_order, type: number}
+    - {name: active, type: bool}
     server: full
-    title: Inventory items
-  syrup_entries:
+    title: Inventory columns
+  inventory_history:
     client: none
     columns:
-    - admin_ui: {}
-      client_hidden: null
-      name: entry_id
-      type: string
-    - admin_ui: {}
-      client_hidden: null
-      name: flavor_key
-      type: string
-    - admin_ui: {}
-      client_hidden: null
-      name: flavor_name
-      type: string
-    - admin_ui: {}
-      client_hidden: null
-      name: measure
-      type: string
-    - admin_ui: {}
-      client_hidden: null
-      name: quantity
-      type: number
-    - admin_ui: {}
-      client_hidden: null
-      name: entered_by
-      type: string
-    - admin_ui: {}
-      client_hidden: null
-      name: entered_at
-      type: datetime
-    indexes: []
+    - {name: entry_id, type: string}
+    - {name: row_key, type: string}
+    - {name: row_label, type: string}
+    - {name: column_key, type: string}
+    - {name: column_label, type: string}
+    - {name: quantity, type: number}
+    - {name: entered_by, type: string}
+    - {name: entered_at, type: datetime}
     server: full
-    title: Syrup count history
-  syrup_items:
+    title: Inventory quantity history
+  inventory_rows:
     client: none
     columns:
-    - admin_ui: {}
-      client_hidden: null
-      name: flavor_key
-      type: string
-    - admin_ui: {}
-      client_hidden: null
-      name: slot_label
-      type: string
-    - admin_ui: {}
-      client_hidden: null
-      name: flavor_name
-      type: string
-    - admin_ui: {}
-      client_hidden: null
-      name: item_kind
-      type: string
-    - admin_ui: {}
-      client_hidden: null
-      name: sort_order
-      type: number
-    - admin_ui: {}
-      client_hidden: null
-      name: active
-      type: bool
-    - admin_ui: {}
-      client_hidden: null
-      name: latest_bottles
-      type: number
-    - admin_ui: {}
-      client_hidden: null
-      name: latest_small_containers
-      type: number
-    - admin_ui: {}
-      client_hidden: null
-      name: latest_large_containers
-      type: number
-    - admin_ui: {}
-      client_hidden: null
-      name: latest_weekend_special
-      type: number
-    - admin_ui: {}
-      client_hidden: null
-      name: latest_entered_by
-      type: string
-    - admin_ui: {}
-      client_hidden: null
-      name: latest_entered_at
-      type: datetime
-    indexes: []
+    - {name: row_key, type: string}
+    - {name: label, type: string}
+    - {name: sort_order, type: number}
+    - {name: active, type: bool}
     server: full
-    title: Syrup tracker rows
-name: Minimal Theme 1
-package_name: Minimal_Theme_1
+    title: Inventory rows
+  inventory_settings:
+    client: none
+    columns:
+    - {name: settings_key, type: string}
+    - {name: title, type: string}
+    - {name: row_heading, type: string}
+    server: full
+    title: Inventory table settings
+metadata: {title: inventory}
+name: the bike library inventory
+package_name: the_bike_library_inventory
 runtime_options:
   client_version: '3'
   server_spec: {base: python314}

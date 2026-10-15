@@ -8,15 +8,34 @@ class Form1(Form1Template):
     super().__init__(**properties)
     self._wizard_cells = []
     self._wizard_index = 0
-    self.table_editor_panel.visible = False
-    self.guided_panel.visible = False
+    self._set_active_tab("grid")
     self._load_latest_counts()
+
+  def _set_active_tab(self, active_tab):
+    panels = {
+      "grid": self.grid_entry_panel,
+      "guided": self.guided_panel,
+      "customize": self.table_editor_panel,
+      "charts": self.charts_panel,
+      "digest": self.digest_panel,
+    }
+    buttons = {
+      "grid": self.grid_tab_button,
+      "guided": self.guided_tab_button,
+      "customize": self.customize_tab_button,
+      "charts": self.charts_tab_button,
+      "digest": self.digest_tab_button,
+    }
+
+    for tab_name, panel in panels.items():
+      panel.visible = tab_name == active_tab
+      buttons[tab_name].enabled = tab_name != active_tab
 
   def _load_latest_counts(self):
     snapshot = anvil.server.call("get_inventory_grid")
     self._snapshot = snapshot
     self.title_label.text = snapshot["settings"]["title"]
-    self.latest_stocktake_label.text = snapshot["latest_update_display"]
+    self.latest_update_label.text = snapshot["latest_update_display"]
     self.matrix_row_heading.text = snapshot["settings"]["row_heading"]
     self.column_headers_panel.items = snapshot["columns"]
     self.rows_panel.items = snapshot["rows"]
@@ -27,8 +46,16 @@ class Form1(Form1Template):
     self.row_heading_box.text = settings["row_heading"]
     self.row_labels_area.text = "\n".join(self._snapshot["row_labels"])
     self.column_labels_area.text = "\n".join(self._snapshot["column_labels"])
-    self.table_editor_panel.visible = True
-    self.guided_panel.visible = False
+    self._set_active_tab("customize")
+
+  def _start_guided_entry(self):
+    self._wizard_cells = [
+      (row, cell)
+      for row in self.rows_panel.items
+      for cell in row["cells"]
+    ]
+    self._wizard_index = 0
+    self._show_wizard_step()
 
   def _show_wizard_step(self):
     total_steps = len(self._wizard_cells)
@@ -51,9 +78,35 @@ class Form1(Form1Template):
       "Save & Finish" if self._wizard_index == total_steps - 1 else "Save & Next"
     )
 
+  @handle("grid_tab_button", "click")
+  def grid_tab_button_click(self, **event_args):
+    self._set_active_tab("grid")
+
+  @handle("guided_tab_button", "click")
+  def guided_tab_button_click(self, **event_args):
+    self._start_guided_entry()
+    self._set_active_tab("guided")
+
+  @handle("customize_tab_button", "click")
+  def customize_tab_button_click(self, **event_args):
+    self._open_table_editor()
+
+  @handle("charts_tab_button", "click")
+  def charts_tab_button_click(self, **event_args):
+    self._set_active_tab("charts")
+
+  @handle("digest_tab_button", "click")
+  def digest_tab_button_click(self, **event_args):
+    self._set_active_tab("digest")
+
+  @handle("refresh_button", "click")
+  def refresh_button_click(self, **event_args):
+    self._load_latest_counts()
+    self.status_label.text = "Latest shared values refreshed."
+
   @handle("save_grid_button", "click")
   def save_grid_button_click(self, **event_args):
-    initials = (self.initials_box.text or "").strip().upper()
+    initials = (self.grid_initials_box.text or "").strip().upper()
     if not initials.isalpha() or not 1 <= len(initials) <= 5:
       self.status_label.text = "Enter 1–5 letters for your initials."
       return
@@ -80,22 +133,6 @@ class Form1(Form1Template):
     self._load_latest_counts()
     self.status_label.text = "Grid counts saved and shared."
 
-  @handle("refresh_button", "click")
-  def refresh_button_click(self, **event_args):
-    self._load_latest_counts()
-    self.status_label.text = "Latest shared values refreshed."
-
-  @handle("customize_button", "click")
-  def customize_button_click(self, **event_args):
-    if self.table_editor_panel.visible:
-      self.table_editor_panel.visible = False
-    else:
-      self._open_table_editor()
-
-  @handle("cancel_setup_button", "click")
-  def cancel_setup_button_click(self, **event_args):
-    self.table_editor_panel.visible = False
-
   @handle("save_setup_button", "click")
   def save_setup_button_click(self, **event_args):
     self.save_setup_button.enabled = False
@@ -114,29 +151,18 @@ class Form1(Form1Template):
       self.status_label.text = result["message"]
       return
 
-    self.table_editor_panel.visible = False
+    self._wizard_cells = []
+    self._set_active_tab("grid")
     self._load_latest_counts()
-    self.status_label.text = "Table setup saved. Existing history is retained."
+    self.status_label.text = "Table setup saved. Existing entry history is retained."
 
-  @handle("guided_button", "click")
-  def guided_button_click(self, **event_args):
-    if self.guided_panel.visible:
-      self.guided_panel.visible = False
-      return
-
-    self._wizard_cells = [
-      (row, cell)
-      for row in self.rows_panel.items
-      for cell in row["cells"]
-    ]
-    self._wizard_index = 0
-    self.table_editor_panel.visible = False
-    self.guided_panel.visible = True
-    self._show_wizard_step()
+  @handle("cancel_setup_button", "click")
+  def cancel_setup_button_click(self, **event_args):
+    self._set_active_tab("grid")
 
   @handle("wizard_save_button", "click")
   def wizard_save_button_click(self, **event_args):
-    initials = (self.initials_box.text or "").strip().upper()
+    initials = (self.wizard_initials_box.text or "").strip().upper()
     if not initials.isalpha() or not 1 <= len(initials) <= 5:
       self.status_label.text = "Enter 1–5 letters for your initials."
       return
@@ -170,4 +196,4 @@ class Form1(Form1Template):
 
   @handle("wizard_close_button", "click")
   def wizard_close_button_click(self, **event_args):
-    self.guided_panel.visible = False
+    self._set_active_tab("grid")
