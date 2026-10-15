@@ -41,13 +41,6 @@ db_schema:
     - {name: active, type: bool}
     server: full
     title: Inventory rows
-  inventory_settings:
-    client: none
-    columns:
-    - {name: settings_key, type: string}
-    - {name: row_heading, type: string}
-    server: full
-    title: Inventory table settings
   users:
     client: none
     columns:
