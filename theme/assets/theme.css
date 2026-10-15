@@ -71,6 +71,7 @@ a:focus {
 
 /* Matches the workspace tabs it sits beside. */
 .anvil-role-refresh-button > button {
+  height: 40px;
   min-height: 40px;
   padding: 0 14px;
   background: var(--blank-muted);
@@ -235,11 +236,26 @@ textarea.anvil-text-area:disabled {
 .workspace-tabs {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
   margin: 0 0 14px;
 }
 
+/* Button text never wraps, so every tab stays one line tall. The selector
+   outranks Anvil's own button-text rule. */
+.workspace-tabs .anvil-button button,
+.workspace-tabs .anvil-button button span,
+.user-bar .anvil-button button,
+.user-bar .anvil-button button span {
+  white-space: nowrap;
+}
+
+.workspace-tabs .anvil-button {
+  flex: 0 0 auto;
+}
+
 .anvil-role-workspace-tab > button {
+  height: 40px;
   min-height: 40px;
   padding: 0 14px;
   border: 1px solid var(--blank-border);
@@ -416,7 +432,7 @@ input.anvil-role-wizard-quantity {
 }
 
 .inventory-matrix {
-  min-width: 680px;
+  min-width: 560px;
 }
 
 .matrix-header,
@@ -426,24 +442,24 @@ input.anvil-role-wizard-quantity {
 }
 
 .matrix-header {
-  min-height: 56px;
+  min-height: 44px;
   border-bottom: 2px solid var(--blank-text);
   background: var(--blank-surface-muted);
   color: var(--blank-primary-dark);
 }
 
 .matrix-row {
-  min-height: 88px;
+  min-height: 0;
   border-bottom: 1px solid var(--blank-border);
 }
 
 .matrix-row-heading,
 .matrix-row-label {
   display: flex;
-  flex: 0 0 230px;
+  flex: 0 0 180px;
   align-items: center;
   box-sizing: border-box;
-  padding: 12px 16px;
+  padding: 6px 12px;
   border-right: 1px solid var(--blank-text);
   font-weight: 700;
 }
@@ -479,8 +495,8 @@ input.anvil-role-wizard-quantity {
   flex-direction: column;
   justify-content: center;
   box-sizing: border-box;
-  min-width: 120px;
-  padding: 10px 12px;
+  min-width: 96px;
+  padding: 6px 8px;
   border-right: 1px solid var(--blank-border);
 }
 
@@ -491,12 +507,18 @@ input.anvil-role-wizard-quantity {
 }
 
 .matrix-cell {
-  gap: 5px;
+  gap: 2px;
+}
+
+/* Anvil pads labels to line up with inputs; inside the grid that only adds height. */
+.inventory-matrix .anvil-label {
+  padding: 0;
 }
 
 input.anvil-role-matrix-quantity {
   width: 100%;
-  min-height: 44px;
+  height: 36px;
+  min-height: 36px;
   font-size: 18px;
   font-weight: 700;
   text-align: center;
@@ -543,7 +565,8 @@ input.anvil-role-matrix-quantity {
   }
 
   .user-bar .anvil-button > button {
-    min-height: 30px;
+    height: 32px;
+    min-height: 32px;
     padding: 0 10px;
     font-size: 13px;
   }
@@ -565,6 +588,7 @@ input.anvil-role-matrix-quantity {
 
   .anvil-role-workspace-tab > button,
   .anvil-role-refresh-button > button {
+    height: 32px;
     min-height: 32px;
     padding: 0 10px;
     font-size: 13px;
@@ -629,6 +653,7 @@ input.anvil-role-matrix-quantity {
   }
 
   input.anvil-role-matrix-quantity {
+    height: 32px;
     min-height: 32px;
     padding: 2px 4px;
     font-size: 16px;

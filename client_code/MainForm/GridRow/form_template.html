@@ -1,6 +1,6 @@
 <div class="matrix-row">
     <div class="matrix-row-label">
-        <anvil-component type="Label" name="row_label" bind:text="self.item['label']"></anvil-component>
+        <anvil-component type="Label" name="row_label" prop:spacing_above="none" prop:spacing_below="none" bind:text="self.item['label']"></anvil-component>
     </div>
     <anvil-component type="RepeatingPanel" name="cells_panel" prop:item_template="TBL_Inventory.MainForm.GridCell" prop:role="matrix-row-cells"></anvil-component>
 </div>
