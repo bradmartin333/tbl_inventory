@@ -199,6 +199,31 @@ textarea.anvil-text-area:disabled {
 
 /* Workspace */
 
+.user-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin: 0 0 14px;
+}
+
+.anvil-role-user-initials {
+  min-width: 36px;
+  padding: 6px 8px;
+  border-radius: 999px;
+  background: var(--blank-surface-muted);
+  color: var(--blank-primary-dark);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.anvil-role-user-email {
+  color: var(--blank-muted);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
 .workspace-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -246,10 +271,6 @@ textarea.anvil-text-area:disabled {
   font-size: 22px;
 }
 
-.editor-toolbar {
-  margin-bottom: 14px;
-}
-
 .setup-actions,
 .guided-control {
   display: flex;
@@ -272,12 +293,10 @@ textarea.anvil-text-area:disabled {
 
 /* Form fields */
 
-.initials-field,
 .wizard-quantity-field {
   width: min(220px, 100%);
 }
 
-.initials-field label,
 .setup-field label,
 .wizard-entry-fields label {
   display: flex;
@@ -289,13 +308,8 @@ textarea.anvil-text-area:disabled {
 
 /* A TextBox's role class sits on the <input> itself; the element selector
    outranks the base input.anvil-text-box rule. */
-input.anvil-role-initials-input,
 input.anvil-role-wizard-quantity {
   width: 100%;
-}
-
-input.anvil-role-initials-input {
-  text-transform: uppercase;
 }
 
 .setup-fields {

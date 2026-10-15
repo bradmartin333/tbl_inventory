@@ -78,7 +78,7 @@ def _active_ordered(table):
   return items
 
 
-@anvil.server.callable
+@anvil.server.callable(require_user=True)
 def get_inventory_grid():
   _ensure_default_grid()
   settings = _get_settings()
@@ -162,7 +162,7 @@ def _reconcile_labels(table, labels, key_name):
       item["active"] = False
 
 
-@anvil.server.callable
+@anvil.server.callable(require_user=True)
 def save_inventory_configuration(row_labels_text, column_labels_text):
   row_labels = _split_labels(row_labels_text)
   column_labels = _split_labels(column_labels_text)
@@ -179,11 +179,11 @@ def save_inventory_configuration(row_labels_text, column_labels_text):
   return {"ok": True}
 
 
-@anvil.server.callable
-def save_grid_cell(initials, row_key, column_key, raw_quantity):
-  initials = initials.strip().upper() if isinstance(initials, str) else ""
-  if not initials.isalpha() or not 1 <= len(initials) <= 5:
-    return {"ok": False, "message": "Enter 1–5 letters for your initials."}
+@anvil.server.callable(require_user=True)
+def save_grid_cell(row_key, column_key, raw_quantity):
+  initials = (anvil.users.get_user()["initials"] or "").strip().upper()
+  if not initials:
+    return {"ok": False, "message": "Your account has no initials set. Ask an admin to add them."}
 
   if not isinstance(row_key, str) or not isinstance(column_key, str):
     return {"ok": False, "message": "Refresh the table and try again."}

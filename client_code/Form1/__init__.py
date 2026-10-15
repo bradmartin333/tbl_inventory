@@ -9,6 +9,8 @@ class Form1(Form1Template):
   def __init__(self, **properties):
     super().__init__(**properties)
     self.user = anvil.users.login_with_form()
+    self.user_initials_label.text = self.user["initials"] or "—"
+    self.user_email_label.text = self.user["email"]
     self._wizard_cells = []
     self._wizard_index = 0
     self.rows_panel.add_event_handler("x-save-cell", self._save_grid_cell)
@@ -48,13 +50,6 @@ class Form1(Form1Template):
   def _show_error(self, message):
     Notification(message, style="warning", timeout=None).show()
 
-  def _read_initials(self, text_box):
-    initials = (text_box.text or "").strip().upper()
-    if not initials.isalpha() or not 1 <= len(initials) <= 5:
-      self._show_error("Enter 1–5 letters for your initials.")
-      return None
-    return initials
-
   def _open_table_editor(self):
     self.row_labels_area.text = "\n".join(self._snapshot["row_labels"])
     self.column_labels_area.text = "\n".join(self._snapshot["column_labels"])
@@ -92,17 +87,11 @@ class Form1(Form1Template):
 
   def _save_wizard_step(self, quantity):
     row, cell = self._wizard_cells[self._wizard_index]
-    initials = self._read_initials(self.wizard_initials_box)
-    if initials is None:
-      self.wizard_quantity_box.text = cell["entry_quantity"]
-      return
-
     self.wizard_next_button.enabled = False
     self.wizard_zero_button.enabled = False
     try:
       result = anvil.server.call(
         "save_grid_cell",
-        initials,
         row["row_key"],
         cell["column_key"],
         quantity,
@@ -142,20 +131,19 @@ class Form1(Form1Template):
   def digest_tab_button_click(self, **event_args):
     self._set_active_tab("digest")
 
+  @handle("logout_button", "click")
+  def logout_button_click(self, **event_args):
+    anvil.users.logout()
+    open_form("Form1")
+
   @handle("refresh_button", "click")
   def refresh_button_click(self, **event_args):
     self._load_latest_counts()
 
   def _save_grid_cell(self, cell, quantity, **event_args):
-    initials = self._read_initials(self.grid_initials_box)
-    if initials is None:
-      cell.revert()
-      return
-
     # Silent call: no loading overlay while the user moves between cells.
     result = anvil.server.call_s(
       "save_grid_cell",
-      initials,
       cell.item["row_key"],
       cell.item["column_key"],
       quantity,

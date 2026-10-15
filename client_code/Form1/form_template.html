@@ -1,6 +1,11 @@
 <anvil-form layout="TBL_Inventory.Layouts.BaseLayout">
   <anvil-block slot="content">
     <section>
+        <div class="user-bar">
+            <anvil-component type="Label" name="user_initials_label" prop:role="user-initials"></anvil-component>
+            <anvil-component type="Label" name="user_email_label" prop:role="user-email"></anvil-component>
+            <anvil-component type="Button" name="logout_button" prop:text="Log out" prop:role="secondary-button"></anvil-component>
+        </div>
         <nav aria-label="Inventory workspace" class="workspace-tabs">
             <anvil-component type="Button" name="grid_tab_button" prop:text="Grid entry" prop:role="workspace-tab"></anvil-component>
             <anvil-component type="Button" name="guided_tab_button" prop:text="Guided entry" prop:role="workspace-tab"></anvil-component>
@@ -11,13 +16,6 @@
         </nav>
     
         <anvil-component type="ColumnPanel" name="grid_entry_panel" prop:role="workspace-panel">
-          <div class="editor-toolbar">
-              <div class="initials-field">
-                  <label>Your initials
-                      <anvil-component type="TextBox" name="grid_initials_box" prop:placeholder="AB" prop:role="initials-input"></anvil-component>
-                  </label>
-              </div>
-          </div>
           <div class="matrix-scroll">
               <div class="inventory-matrix">
                   <div class="matrix-header">
@@ -39,11 +37,6 @@
                   <anvil-component type="Label" name="wizard_target_label" prop:role="wizard-target"></anvil-component>
               </div>
               <div class="wizard-entry-fields">
-                  <div class="initials-field">
-                      <label>Your initials
-                          <anvil-component type="TextBox" name="wizard_initials_box" prop:placeholder="AB" prop:role="initials-input"></anvil-component>
-                      </label>
-                  </div>
                   <div anvil:dom-node="wizard_quantity_field" class="wizard-quantity-field">
                       <label>Quantity
                           <anvil-component type="TextBox" name="wizard_quantity_box" prop:placeholder="Enter quantity" prop:role="wizard-quantity"></anvil-component>

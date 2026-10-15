@@ -24,6 +24,10 @@ roles:
 - components: [Label]
   name: cell-latest-meta
 - components: [Label]
+  name: user-email
+- components: [Label]
+  name: user-initials
+- components: [Label]
   name: wizard-step
 - components: [Label]
   name: wizard-target
@@ -31,8 +35,6 @@ roles:
   name: matrix-column-headers
 - components: [RepeatingPanel]
   name: matrix-row-cells
-- components: [TextBox]
-  name: initials-input
 - components: [TextBox]
   name: matrix-quantity
 - components: [TextBox]
