@@ -17,18 +17,7 @@ NO_INITIALS_MESSAGE = (
 )
 
 
-def _get_settings():
-  rows = list(app_tables.inventory_settings.search(settings_key="main"))
-  if rows:
-    return rows[0]
-  return app_tables.inventory_settings.add_row(
-    settings_key="main",
-    row_heading="Item",
-  )
-
-
 def _ensure_default_grid():
-  _get_settings()
   if not list(app_tables.inventory_rows.search()):
     for order, label in enumerate(DEFAULT_ROWS, start=1):
       app_tables.inventory_rows.add_row(
@@ -96,7 +85,6 @@ def _active_ordered(table):
 @anvil.server.callable(require_user=True)
 def get_inventory_grid():
   _ensure_default_grid()
-  settings = _get_settings()
   rows = _active_ordered(app_tables.inventory_rows)
   columns = _active_ordered(app_tables.inventory_columns)
   saved_cells = {
@@ -125,7 +113,6 @@ def get_inventory_grid():
 
   return {
     "initials": _user_initials(anvil.users.get_user()),
-    "row_heading": settings["row_heading"],
     "rows": grid_rows,
     "columns": [
       {"column_key": column["column_key"], "label": column["label"]}

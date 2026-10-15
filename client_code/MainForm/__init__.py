@@ -55,7 +55,6 @@ class MainForm(MainFormTemplate):
         cell["editable"] = self._can_enter
     # Rebuilding the rows briefly collapses the page, so keep the reader's place.
     scroll_y = window.scrollY
-    self.matrix_row_heading.text = snapshot["row_heading"]
     self.column_headers_panel.items = snapshot["columns"]
     self.rows_panel.items = snapshot["rows"]
     window.scrollTo(window.scrollX, scroll_y)
