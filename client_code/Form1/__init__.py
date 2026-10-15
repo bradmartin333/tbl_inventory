@@ -71,6 +71,7 @@ class Form1(Form1Template):
     total_steps = len(self._wizard_cells)
     complete = self._wizard_index >= total_steps
     self.dom_nodes["wizard_quantity_field"].style.display = "none" if complete else ""
+    self.dom_nodes["wizard_quick_quantities"].style.display = "none" if complete else ""
     self.wizard_zero_button.visible = not complete
     self.wizard_next_button.visible = not complete
     self.wizard_close_button.visible = complete
@@ -196,6 +197,36 @@ class Form1(Form1Template):
   def wizard_zero_button_click(self, **event_args):
     self.wizard_quantity_box.text = "0"
     self._save_wizard_step("0")
+
+  def _wizard_quantity_value(self):
+    try:
+      return max(float((self.wizard_quantity_box.text or "").strip() or 0), 0)
+    except ValueError:
+      return 0
+
+  def _set_wizard_quantity(self, quantity):
+    self.wizard_quantity_box.text = f"{quantity:g}"
+
+  def _set_wizard_fraction(self, fraction):
+    # Fractions replace the part after the whole number, so 2 then 3/4 gives 2.75.
+    whole = int(self._wizard_quantity_value())
+    self._set_wizard_quantity(whole + fraction)
+
+  @handle("wizard_quarter_button", "click")
+  def wizard_quarter_button_click(self, **event_args):
+    self._set_wizard_fraction(0.25)
+
+  @handle("wizard_half_button", "click")
+  def wizard_half_button_click(self, **event_args):
+    self._set_wizard_fraction(0.5)
+
+  @handle("wizard_three_quarters_button", "click")
+  def wizard_three_quarters_button_click(self, **event_args):
+    self._set_wizard_fraction(0.75)
+
+  @handle("wizard_plus_one_button", "click")
+  def wizard_plus_one_button_click(self, **event_args):
+    self._set_wizard_quantity(self._wizard_quantity_value() + 1)
 
   @handle("wizard_close_button", "click")
   def wizard_close_button_click(self, **event_args):

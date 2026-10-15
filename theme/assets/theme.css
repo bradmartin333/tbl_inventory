@@ -266,6 +266,10 @@ textarea.anvil-text-area:disabled {
   flex-wrap: wrap;
 }
 
+.guided-quick-quantities {
+  margin-bottom: 10px;
+}
+
 /* Form fields */
 
 .initials-field,
