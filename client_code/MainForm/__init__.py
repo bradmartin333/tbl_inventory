@@ -43,31 +43,23 @@ class MainForm(MainFormTemplate):
 
   def _activate_account(self):
     email_box = TextBox(placeholder="Email", type="email")
-    password_box = TextBox(placeholder="Password", hide_text=True)
-    repeat_box = TextBox(placeholder="Repeat password", hide_text=True)
     # Errors live inside the dialog: a Notification would sit behind the
     # alert as soon as the loop reopens it.
     error_label = Label(foreground="#b3261e", visible=False)
     panel = ColumnPanel()
-    for component in (email_box, password_box, repeat_box, error_label):
-      panel.add_component(component)
+    panel.add_component(email_box)
+    panel.add_component(error_label)
 
-    def show_error(message):
-      error_label.text = message
-      error_label.visible = True
-
-    while alert(panel, title="Activate account", buttons=[("Activate", True), ("Back", False)]):
-      if password_box.text != repeat_box.text:
-        show_error("Passwords don't match.")
-        continue
-      result = anvil.server.call("activate_account", email_box.text, password_box.text)
+    while alert(panel, title="Activate account", buttons=[("Send link", True), ("Back", False)]):
+      result = anvil.server.call("activate_account", email_box.text)
       if result["ok"]:
         alert(
-          "Check your email for a confirmation link, then log in with your new password.",
+          "Check your email for a link to set your password, then log in with it.",
           title="Almost done",
         )
         return
-      show_error(result["message"])
+      error_label.text = result["message"]
+      error_label.visible = True
 
   def _set_active_tab(self, active_tab):
     panels = {
