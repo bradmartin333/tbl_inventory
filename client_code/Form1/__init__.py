@@ -113,9 +113,10 @@ class Form1(Form1Template):
       self._show_error(result["message"])
       return
 
-    self._load_latest_counts()
+    # Advance before reloading so the old step's buttons don't linger during the call.
     self._wizard_index += 1
     self._show_wizard_step()
+    self._load_latest_counts()
 
   @handle("grid_tab_button", "click")
   def grid_tab_button_click(self, **event_args):
