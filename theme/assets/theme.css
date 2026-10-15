@@ -358,7 +358,7 @@ textarea.anvil-text-area:disabled,
 .setup-actions,
 .guided-control {
   display: flex;
-  align-items: center;
+  align-items: top;
   gap: 10px;
 }
 

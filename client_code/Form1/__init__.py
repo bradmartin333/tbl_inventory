@@ -34,8 +34,6 @@ class Form1(Form1Template):
   def _load_latest_counts(self):
     snapshot = anvil.server.call("get_inventory_grid")
     self._snapshot = snapshot
-    self.title_label.text = snapshot["settings"]["title"]
-    self.latest_update_label.text = snapshot["latest_update_display"]
     self.matrix_row_heading.text = snapshot["settings"]["row_heading"]
     self.column_headers_panel.items = snapshot["columns"]
     self.rows_panel.items = snapshot["rows"]
@@ -102,7 +100,6 @@ class Form1(Form1Template):
   @handle("refresh_button", "click")
   def refresh_button_click(self, **event_args):
     self._load_latest_counts()
-    self.status_label.text = "Latest shared values refreshed."
 
   @handle("save_grid_button", "click")
   def save_grid_button_click(self, **event_args):
@@ -131,7 +128,6 @@ class Form1(Form1Template):
       return
 
     self._load_latest_counts()
-    self.status_label.text = "Grid counts saved and shared."
 
   @handle("save_setup_button", "click")
   def save_setup_button_click(self, **event_args):
@@ -154,7 +150,6 @@ class Form1(Form1Template):
     self._wizard_cells = []
     self._set_active_tab("grid")
     self._load_latest_counts()
-    self.status_label.text = "Table setup saved. Existing entry history is retained."
 
   @handle("cancel_setup_button", "click")
   def cancel_setup_button_click(self, **event_args):
@@ -185,7 +180,6 @@ class Form1(Form1Template):
       return
 
     self._load_latest_counts()
-    self.status_label.text = "Cell saved."
     self._wizard_index += 1
     self._show_wizard_step()
 

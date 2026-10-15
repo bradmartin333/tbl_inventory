@@ -1,15 +1,8 @@
 <div class="page-shell">
-  <header class="page-header">
-    <div>
-      <p anvil:dom-node="subtitle_text" class="subtitle" style="min-height: 18px; min-width: 70px;">SHARED INVENTORY</p>
-      <anvil-slot name="title" placeholder="Add your title here"></anvil-slot>
-    </div>
-    <div class="page-actions">
-      <anvil-slot name="actions"></anvil-slot>
-    </div>
-  </header>
-
   <main class="page-main">
-    <anvil-slot name="content" placeholder="Add content here"></anvil-slot>
+    <anvil-component type="FlowPanel" name="flow_panel_1" prop:vertical_align="top">
+      <anvil-slot name="content" container:expand="false"></anvil-slot>
+      <anvil-slot name="actions" container:expand="false"></anvil-slot>
+    </anvil-component>
   </main>
 </div>

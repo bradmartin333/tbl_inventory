@@ -1,24 +1,21 @@
 <anvil-form layout="the_bike_library_inventory.Layouts.BaseLayout">
-  <anvil-block slot="actions">
-    <anvil-component type="Button" name="refresh_button" prop:text="Refresh latest" prop:role="secondary-button"></anvil-component>
-  </anvil-block>
+  <anvil-block slot="actions"></anvil-block>
   <anvil-block slot="content">
     <section class="inventory-workspace">
         <div class="inventory-toolbar">
             <div class="latest-update">
-                <span class="toolbar-caption">Latest update</span>
-                <anvil-component type="Label" name="latest_update_label" prop:role="latest-update-value"></anvil-component>
+                <anvil-dropzone name="$dz_wqj6v4"></anvil-dropzone>
             </div>
         </div>
     
-        <nav aria-label="Inventory workspace" class="workspace-tabs">
+        <nav aria-label="Inventory workspace" class="workspace-tabs" style="border: none; height: 3em;">
             <anvil-component type="Button" name="grid_tab_button" prop:text="Grid entry" prop:role="workspace-tab"></anvil-component>
             <anvil-component type="Button" name="guided_tab_button" prop:text="Guided entry" prop:role="workspace-tab"></anvil-component>
             <anvil-component type="Button" name="customize_tab_button" prop:text="Customize" prop:role="workspace-tab"></anvil-component>
             <anvil-component type="Button" name="charts_tab_button" prop:text="Charts" prop:role="workspace-tab"></anvil-component>
             <anvil-component type="Button" name="digest_tab_button" prop:text="Weekly digest" prop:role="workspace-tab"></anvil-component>
+            <anvil-component type="Button" name="refresh_button" prop:text="Refresh latest" prop:role="null" prop:spacing='{"padding":[0,null,null,null]}' prop:background="theme:Muted" prop:foreground="theme:Surface Muted"></anvil-component>
         </nav>
-        <anvil-component type="Label" name="status_label" prop:role="inventory-status"></anvil-component>
     
         <anvil-component type="ColumnPanel" name="grid_entry_panel" prop:role="workspace-panel">
           <div class="editor-toolbar">
@@ -28,7 +25,6 @@
                   </label>
               </div>
               <div class="save-actions">
-                  <span class="toolbar-caption">Edit any cell, then save your changes.</span>
                   <anvil-component type="Button" name="save_grid_button" prop:text="Save grid" prop:role="save-grid"></anvil-component>
               </div>
           </div>
@@ -43,15 +39,12 @@
                   <anvil-component type="RepeatingPanel" name="rows_panel" prop:item_template="the_bike_library_inventory.Form1.GridRow" prop:role="matrix-rows"></anvil-component>
               </div>
           </div>
-          <p class="inventory-footnote">Blank cells are skipped. Saved values include your initials and entry date.</p>
         </anvil-component>
     
         <anvil-component type="ColumnPanel" name="guided_panel" prop:role="workspace-panel">
           <div class="workspace-panel-heading">
               <div>
-                  <p class="inventory-kicker">Guided entry</p>
                   <h2>Enter one quantity at a time</h2>
-                  <p>Move through the table step by step. Save a value or skip a cell.</p>
               </div>
           </div>
           <div class="guided-card">
@@ -82,19 +75,15 @@
         <anvil-component type="ColumnPanel" name="table_editor_panel" prop:role="workspace-panel">
           <div class="workspace-panel-heading">
               <div>
-                  <p class="inventory-kicker">Customize</p>
-                  <h2>Shape this table for your team</h2>
-                  <p>Use any categories you need. Enter one row or column label per line.</p>
+                  <h2>Shape this table</h2>
               </div>
           </div>
           <div class="setup-fields">
               <div class="setup-field">
-                  <label>Table title</label>
-                  <anvil-component type="TextBox" name="table_title_box" prop:placeholder="Inventory Tracker"></anvil-component>
+                  <anvil-dropzone name="$dz_ucvnpc"></anvil-dropzone>
               </div>
               <div class="setup-field">
-                  <label>First column heading</label>
-                  <anvil-component type="TextBox" name="row_heading_box" prop:placeholder="Item"></anvil-component>
+                  <anvil-dropzone name="$dz_pfeqdc"></anvil-dropzone>
               </div>
               <div class="setup-field">
                   <label>Rows</label>
@@ -103,7 +92,7 @@ Item 2
 Item 3"></anvil-component>
               </div>
               <div class="setup-field">
-                  <label>Quantity columns</label>
+                  <label style>Columns</label>
                   <anvil-component type="TextArea" name="column_labels_area" prop:placeholder="Quantity
 Small containers
 Large containers"></anvil-component>
@@ -134,7 +123,5 @@ Large containers"></anvil-component>
         </anvil-component>
     </section>
   </anvil-block>
-  <anvil-block slot="title">
-    <anvil-component type="Label" name="title_label" prop:role="h1" prop:text="Inventory Tracker"></anvil-component>
-  </anvil-block>
+  <anvil-block slot="title"></anvil-block>
 </anvil-form>
