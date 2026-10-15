@@ -1,38 +1,92 @@
 <anvil-form layout="Minimal_Theme_1.Layouts.BaseLayout">
     <anvil-block slot="actions"></anvil-block>
     <anvil-block slot="content">
-        <section class="inventory-page">
-            <div class="inventory-intro">
-                <p class="inventory-kicker">Shared stocktake</p>
-                <p class="inventory-description">Enter the bar’s current quantities. Each save keeps a dated record so you can review changes over time.</p>
+        <section class="inventory-workspace">
+            <div class="inventory-toolbar">
+                <div class="latest-update">
+                    <span class="toolbar-caption">Latest update</span>
+                    <anvil-component type="Label" name="latest_stocktake_label" prop:role="latest-update-value"></anvil-component>
+                </div>
+                <div class="inventory-actions">
+                    <anvil-component type="Button" name="guided_button" prop:text="Guided entry" prop:role="secondary-button"></anvil-component>
+                    <anvil-component type="Button" name="customize_button" prop:text="Customize table" prop:role="secondary-button"></anvil-component>
+                    <anvil-component type="Button" name="refresh_button" prop:text="Refresh" prop:role="secondary-button"></anvil-component>
+                </div>
             </div>
 
-            <div class="inventory-card">
-                <div class="stocktake-toolbar">
-                    <div class="initials-field">
-                        <label>Your initials
-                            <anvil-component type="TextBox" name="initials_box" prop:placeholder="AB" prop:role="initials-input"></anvil-component>
-                        </label>
-                    </div>
-                    <anvil-component type="Button" name="save_button" prop:text="Save stocktake" prop:role="save-stocktake"></anvil-component>
+            <div class="editor-toolbar">
+                <div class="initials-field">
+                    <label>Your initials
+                        <anvil-component type="TextBox" name="initials_box" prop:placeholder="AB" prop:role="initials-input"></anvil-component>
+                    </label>
                 </div>
-                <anvil-component type="Label" name="status_label" prop:role="inventory-status"></anvil-component>
-
-                <div class="inventory-grid">
-                    <div class="inventory-header" aria-hidden="true">
-                        <span>Inventory item</span>
-                        <span>Quantity</span>
-                        <span>Unit</span>
-                        <span>Last counted</span>
-                        <span>Counted by</span>
-                    </div>
-                    <anvil-component type="RepeatingPanel" name="inventory_panel" prop:item_template="Minimal_Theme_1.Form1.InventoryRow" prop:role="inventory-rows"></anvil-component>
+                <div class="save-actions">
+                    <span class="toolbar-caption">Edit cells directly, or use Guided entry</span>
+                    <anvil-component type="Button" name="save_grid_button" prop:text="Save grid" prop:role="save-grid"></anvil-component>
                 </div>
-                <p class="inventory-footnote">Enter a quantity for every item. Each save records one dated stocktake, and quantities must be zero or greater.</p>
             </div>
+            <anvil-component type="Label" name="status_label" prop:role="inventory-status"></anvil-component>
+
+            <anvil-component type="ColumnPanel" name="table_editor_panel" prop:role="table-editor">
+                <div class="setup-heading">
+                    <div>
+                        <h2>Customize this table</h2>
+                        <p>Set a title, then enter one row or column label per line.</p>
+                    </div>
+                </div>
+                <div class="setup-fields">
+                    <div class="setup-field setup-title-field">
+                        <label>Table title</label>
+                        <anvil-component type="TextBox" name="table_title_box" prop:placeholder="Inventory Tracker"></anvil-component>
+                    </div>
+                    <div class="setup-field setup-title-field">
+                        <label>First column heading</label>
+                        <anvil-component type="TextBox" name="row_heading_box" prop:placeholder="Item"></anvil-component>
+                    </div>
+                    <div class="setup-field">
+                        <label>Rows</label>
+                        <anvil-component type="TextArea" name="row_labels_area" prop:placeholder="Item 1&#10;Item 2&#10;Item 3"></anvil-component>
+                    </div>
+                    <div class="setup-field">
+                        <label>Quantity columns</label>
+                        <anvil-component type="TextArea" name="column_labels_area" prop:placeholder="Quantity&#10;Small containers&#10;Large containers"></anvil-component>
+                    </div>
+                </div>
+                <div class="setup-actions">
+                    <anvil-component type="Button" name="cancel_setup_button" prop:text="Cancel" prop:role="secondary-button"></anvil-component>
+                    <anvil-component type="Button" name="save_setup_button" prop:text="Save table setup"></anvil-component>
+                </div>
+            </anvil-component>
+
+            <anvil-component type="ColumnPanel" name="guided_panel" prop:role="guided-entry">
+                <div class="guided-copy">
+                    <span class="toolbar-caption">Guided entry</span>
+                    <anvil-component type="Label" name="wizard_step_label" prop:role="wizard-step"></anvil-component>
+                    <anvil-component type="Label" name="wizard_target_label" prop:role="wizard-target"></anvil-component>
+                </div>
+                <div class="guided-control">
+                    <anvil-component type="TextBox" name="wizard_quantity_box" prop:placeholder="Enter quantity" prop:role="wizard-quantity"></anvil-component>
+                    <anvil-component type="Button" name="wizard_skip_button" prop:text="Skip cell" prop:role="secondary-button"></anvil-component>
+                    <anvil-component type="Button" name="wizard_save_button" prop:text="Save & Next"></anvil-component>
+                    <anvil-component type="Button" name="wizard_close_button" prop:text="Close" prop:role="secondary-button"></anvil-component>
+                </div>
+            </anvil-component>
+
+            <div class="matrix-scroll">
+                <div class="inventory-matrix">
+                    <div class="matrix-header">
+                        <div class="matrix-row-heading">
+                            <anvil-component type="Label" name="matrix_row_heading" prop:text="Item"></anvil-component>
+                        </div>
+                        <anvil-component type="RepeatingPanel" name="column_headers_panel" prop:item_template="Minimal_Theme_1.Form1.ColumnHeading" prop:role="matrix-column-headers"></anvil-component>
+                    </div>
+                    <anvil-component type="RepeatingPanel" name="rows_panel" prop:item_template="Minimal_Theme_1.Form1.GridRow" prop:role="matrix-rows"></anvil-component>
+                </div>
+            </div>
+            <p class="inventory-footnote">Blank cells are skipped. Saved values include the editor’s initials and entry date.</p>
         </section>
     </anvil-block>
     <anvil-block slot="title">
-        <anvil-component type="Label" name="title_label" prop:role="h1" prop:text="Inventory"></anvil-component>
+        <anvil-component type="Label" name="title_label" prop:role="h1" prop:text="Inventory Tracker"></anvil-component>
     </anvil-block>
 </anvil-form>

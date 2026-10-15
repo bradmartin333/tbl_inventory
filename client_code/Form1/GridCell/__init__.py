@@ -1,8 +1,8 @@
-from ._anvil_designer import InventoryRowTemplate
+from ._anvil_designer import GridCellTemplate
 from anvil import *
 
 
-class InventoryRow(InventoryRowTemplate):
+class GridCell(GridCellTemplate):
   def __init__(self, **properties):
     super().__init__(**properties)
 
