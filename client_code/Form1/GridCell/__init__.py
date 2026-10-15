@@ -14,14 +14,17 @@ class GridCell(GridCellTemplate):
     self.item["latest_display"] = latest_display
     self.refresh_data_bindings()
 
+  def revert(self):
+    self.item["entry_quantity"] = self._saved_text
+    self.refresh_data_bindings()
+
   def _save_if_changed(self):
     text = (self.quantity_box.text or "").strip()
     if self._saving or text == self._saved_text:
       return
     if not text:
       # A saved quantity can't be cleared, so restore it.
-      self.quantity_box.text = self._saved_text
-      self.item["entry_quantity"] = self._saved_text
+      self.revert()
       return
 
     self._saving = True

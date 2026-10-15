@@ -213,14 +213,17 @@ textarea.anvil-text-area:disabled {
   font-weight: 700;
 }
 
-.anvil-role-workspace-tab > button:hover,
-.anvil-role-workspace-tab > button:focus {
+/* :not(:disabled) outranks the generic button hover/focus rules, so an
+   inactive tab never picks up their dark background. */
+.anvil-role-workspace-tab > button:not(:disabled):hover,
+.anvil-role-workspace-tab > button:not(:disabled):focus {
   border-color: var(--blank-primary);
   background: var(--blank-surface-muted);
   color: var(--blank-primary-dark);
 }
 
-.anvil-role-workspace-tab > button:disabled {
+.anvil-role-workspace-tab > button:disabled,
+.anvil-role-workspace-tab > button:disabled:hover {
   border-color: var(--blank-primary);
   background: var(--blank-primary);
   color: white;

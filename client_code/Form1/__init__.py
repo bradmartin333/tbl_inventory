@@ -69,24 +69,53 @@ class Form1(Form1Template):
 
   def _show_wizard_step(self):
     total_steps = len(self._wizard_cells)
-    if self._wizard_index >= total_steps:
+    complete = self._wizard_index >= total_steps
+    self.wizard_quantity_box.visible = not complete
+    self.wizard_zero_button.visible = not complete
+    self.wizard_next_button.visible = not complete
+    self.wizard_close_button.visible = complete
+    if complete:
       self.wizard_step_label.text = "Guided entry complete"
       self.wizard_target_label.text = "All cells have been reviewed."
-      self.wizard_quantity_box.visible = False
-      self.wizard_save_button.visible = False
-      self.wizard_skip_button.visible = False
       return
 
     row, cell = self._wizard_cells[self._wizard_index]
     self.wizard_step_label.text = f"Cell {self._wizard_index + 1} of {total_steps}"
     self.wizard_target_label.text = f"{row['label']}  ·  {cell['column_label']}"
     self.wizard_quantity_box.text = cell["entry_quantity"]
-    self.wizard_quantity_box.visible = True
-    self.wizard_save_button.visible = True
-    self.wizard_skip_button.visible = True
-    self.wizard_save_button.text = (
-      "Save & Finish" if self._wizard_index == total_steps - 1 else "Save & Next"
+    self.wizard_next_button.text = (
+      "Finish" if self._wizard_index == total_steps - 1 else "Next"
     )
+
+  def _save_wizard_step(self, quantity):
+    row, cell = self._wizard_cells[self._wizard_index]
+    initials = self._read_initials(self.wizard_initials_box)
+    if initials is None:
+      self.wizard_quantity_box.text = cell["entry_quantity"]
+      return
+
+    self.wizard_next_button.enabled = False
+    self.wizard_zero_button.enabled = False
+    try:
+      result = anvil.server.call(
+        "save_grid_cell",
+        initials,
+        row["row_key"],
+        cell["column_key"],
+        quantity,
+      )
+    finally:
+      self.wizard_next_button.enabled = True
+      self.wizard_zero_button.enabled = True
+
+    if not result["ok"]:
+      self.wizard_quantity_box.text = cell["entry_quantity"]
+      self._show_error(result["message"])
+      return
+
+    self._load_latest_counts()
+    self._wizard_index += 1
+    self._show_wizard_step()
 
   @handle("grid_tab_button", "click")
   def grid_tab_button_click(self, **event_args):
@@ -116,6 +145,7 @@ class Form1(Form1Template):
   def _save_grid_cell(self, cell, quantity, **event_args):
     initials = self._read_initials(self.grid_initials_box)
     if initials is None:
+      cell.revert()
       return
 
     # Silent call: no loading overlay while the user moves between cells.
@@ -127,6 +157,7 @@ class Form1(Form1Template):
       quantity,
     )
     if not result["ok"]:
+      cell.revert()
       self._show_error(result["message"])
       return
 
@@ -156,37 +187,14 @@ class Form1(Form1Template):
   def cancel_setup_button_click(self, **event_args):
     self._set_active_tab("grid")
 
-  @handle("wizard_save_button", "click")
-  def wizard_save_button_click(self, **event_args):
-    initials = self._read_initials(self.wizard_initials_box)
-    if initials is None:
-      return
+  @handle("wizard_next_button", "click")
+  def wizard_next_button_click(self, **event_args):
+    self._save_wizard_step(self.wizard_quantity_box.text)
 
-    row, cell = self._wizard_cells[self._wizard_index]
-    self.wizard_save_button.enabled = False
-    try:
-      result = anvil.server.call(
-        "save_grid_cell",
-        initials,
-        row["row_key"],
-        cell["column_key"],
-        self.wizard_quantity_box.text,
-      )
-    finally:
-      self.wizard_save_button.enabled = True
-
-    if not result["ok"]:
-      self._show_error(result["message"])
-      return
-
-    self._load_latest_counts()
-    self._wizard_index += 1
-    self._show_wizard_step()
-
-  @handle("wizard_skip_button", "click")
-  def wizard_skip_button_click(self, **event_args):
-    self._wizard_index += 1
-    self._show_wizard_step()
+  @handle("wizard_zero_button", "click")
+  def wizard_zero_button_click(self, **event_args):
+    self.wizard_quantity_box.text = "0"
+    self._save_wizard_step("0")
 
   @handle("wizard_close_button", "click")
   def wizard_close_button_click(self, **event_args):
