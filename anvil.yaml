@@ -48,9 +48,9 @@ db_schema:
     - {name: row_heading, type: string}
     server: full
     title: Inventory table settings
-metadata: {title: inventory}
-name: the bike library inventory
-package_name: the_bike_library_inventory
+metadata: {logo_img: 'asset:tbl-letters-transparent.png', title: Inventory}
+name: TBL Inventory
+package_name: TBL_Inventory
 runtime_options:
   client_version: '3'
   server_spec: {base: python314}

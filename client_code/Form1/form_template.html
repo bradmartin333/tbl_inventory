@@ -1,4 +1,4 @@
-<anvil-form layout="the_bike_library_inventory.Layouts.BaseLayout">
+<anvil-form layout="TBL_Inventory.Layouts.BaseLayout">
   <anvil-block slot="content">
     <section>
         <nav aria-label="Inventory workspace" class="workspace-tabs">
@@ -24,9 +24,9 @@
                       <div class="matrix-row-heading">
                           <anvil-component type="Label" name="matrix_row_heading" prop:text="Item"></anvil-component>
                       </div>
-                      <anvil-component type="RepeatingPanel" name="column_headers_panel" prop:item_template="the_bike_library_inventory.Form1.ColumnHeading" prop:role="matrix-column-headers"></anvil-component>
+                      <anvil-component type="RepeatingPanel" name="column_headers_panel" prop:item_template="TBL_Inventory.Form1.ColumnHeading" prop:role="matrix-column-headers"></anvil-component>
                   </div>
-                  <anvil-component type="RepeatingPanel" name="rows_panel" prop:item_template="the_bike_library_inventory.Form1.GridRow"></anvil-component>
+                  <anvil-component type="RepeatingPanel" name="rows_panel" prop:item_template="TBL_Inventory.Form1.GridRow"></anvil-component>
               </div>
           </div>
         </anvil-component>
@@ -44,13 +44,13 @@
                           <anvil-component type="TextBox" name="wizard_initials_box" prop:placeholder="AB" prop:role="initials-input"></anvil-component>
                       </label>
                   </div>
-                  <div class="wizard-quantity-field" anvil:dom-node="wizard_quantity_field">
+                  <div anvil:dom-node="wizard_quantity_field" class="wizard-quantity-field">
                       <label>Quantity
                           <anvil-component type="TextBox" name="wizard_quantity_box" prop:placeholder="Enter quantity" prop:role="wizard-quantity"></anvil-component>
                       </label>
                   </div>
               </div>
-              <div class="guided-control guided-quick-quantities" anvil:dom-node="wizard_quick_quantities">
+              <div anvil:dom-node="wizard_quick_quantities" class="guided-control guided-quick-quantities">
                   <anvil-component type="Button" name="wizard_quarter_button" prop:text="1/4" prop:role="secondary-button"></anvil-component>
                   <anvil-component type="Button" name="wizard_half_button" prop:text="1/2" prop:role="secondary-button"></anvil-component>
                   <anvil-component type="Button" name="wizard_three_quarters_button" prop:text="3/4" prop:role="secondary-button"></anvil-component>
