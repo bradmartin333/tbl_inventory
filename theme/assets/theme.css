@@ -240,8 +240,10 @@ textarea.anvil-text-area:disabled {
   font-size: 22px;
 }
 
-.editor-toolbar,
-.save-actions,
+.editor-toolbar {
+  margin-bottom: 14px;
+}
+
 .setup-actions,
 .guided-control {
   display: flex;
@@ -249,28 +251,13 @@ textarea.anvil-text-area:disabled {
   gap: 10px;
 }
 
-.editor-toolbar {
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 20px;
-  margin-bottom: 14px;
-}
-
-.save-actions,
 .setup-actions {
   justify-content: flex-end;
-}
-
-.setup-actions {
   margin-top: 16px;
 }
 
 .guided-control {
   flex-wrap: wrap;
-}
-
-.anvil-role-save-grid > button {
-  min-width: 130px;
 }
 
 /* Form fields */
@@ -493,16 +480,6 @@ input.anvil-role-matrix-quantity {
 }
 
 @media (max-width: 760px) {
-  .editor-toolbar {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .save-actions {
-    justify-content: flex-start;
-    flex-wrap: wrap;
-  }
-
   .workspace-tabs {
     gap: 6px;
   }

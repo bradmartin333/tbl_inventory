@@ -16,8 +16,6 @@ roles:
 - components: [Button]
   name: refresh-button
 - components: [Button]
-  name: save-grid
-- components: [Button]
   name: secondary-button
 - components: [Button]
   name: workspace-tab

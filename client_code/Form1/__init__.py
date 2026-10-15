@@ -1,6 +1,7 @@
 from ._anvil_designer import Form1Template
 from anvil import *
 import anvil.server
+from anvil.js import window
 
 
 class Form1(Form1Template):
@@ -8,6 +9,7 @@ class Form1(Form1Template):
     super().__init__(**properties)
     self._wizard_cells = []
     self._wizard_index = 0
+    self.rows_panel.add_event_handler("x-save-cell", self._save_grid_cell)
     self._set_active_tab("grid")
     self._load_latest_counts()
 
@@ -34,9 +36,12 @@ class Form1(Form1Template):
   def _load_latest_counts(self):
     snapshot = anvil.server.call("get_inventory_grid")
     self._snapshot = snapshot
+    # Rebuilding the rows briefly collapses the page, so keep the reader's place.
+    scroll_y = window.scrollY
     self.matrix_row_heading.text = snapshot["row_heading"]
     self.column_headers_panel.items = snapshot["columns"]
     self.rows_panel.items = snapshot["rows"]
+    window.scrollTo(window.scrollX, scroll_y)
 
   def _show_error(self, message):
     Notification(message, style="warning", timeout=None).show()
@@ -108,32 +113,24 @@ class Form1(Form1Template):
   def refresh_button_click(self, **event_args):
     self._load_latest_counts()
 
-  @handle("save_grid_button", "click")
-  def save_grid_button_click(self, **event_args):
+  def _save_grid_cell(self, cell, quantity, **event_args):
     initials = self._read_initials(self.grid_initials_box)
     if initials is None:
       return
 
-    cell_values = []
-    for row in self.rows_panel.items:
-      for cell in row["cells"]:
-        cell_values.append({
-          "row_key": row["row_key"],
-          "column_key": cell["column_key"],
-          "quantity": cell["entry_quantity"],
-        })
-
-    self.save_grid_button.enabled = False
-    try:
-      result = anvil.server.call("save_grid_counts", initials, cell_values)
-    finally:
-      self.save_grid_button.enabled = True
-
+    # Silent call: no loading overlay while the user moves between cells.
+    result = anvil.server.call_s(
+      "save_grid_cell",
+      initials,
+      cell.item["row_key"],
+      cell.item["column_key"],
+      quantity,
+    )
     if not result["ok"]:
       self._show_error(result["message"])
       return
 
-    self._load_latest_counts()
+    cell.show_saved(result["entry_quantity"], result["latest_display"])
 
   @handle("save_setup_button", "click")
   def save_setup_button_click(self, **event_args):

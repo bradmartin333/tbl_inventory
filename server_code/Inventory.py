@@ -18,7 +18,6 @@ def _get_settings():
     return rows[0]
   return app_tables.inventory_settings.add_row(
     settings_key="main",
-    title="Inventory Tracker",
     row_heading="Item",
   )
 
@@ -179,98 +178,45 @@ def save_inventory_configuration(row_labels_text, column_labels_text):
   return {"ok": True}
 
 
-def _save_grid_values(initials, cell_values, skip_blank):
-  if not isinstance(initials, str):
-    return {"ok": False, "message": "Enter 1–5 letters for your initials."}
-  initials = initials.strip().upper()
+@anvil.server.callable
+def save_grid_cell(initials, row_key, column_key, raw_quantity):
+  initials = initials.strip().upper() if isinstance(initials, str) else ""
   if not initials.isalpha() or not 1 <= len(initials) <= 5:
     return {"ok": False, "message": "Enter 1–5 letters for your initials."}
 
-  _ensure_default_grid()
-  rows_by_key = {
-    row["row_key"]: row
-    for row in app_tables.inventory_rows.search(active=True)
-  }
-  columns_by_key = {
-    column["column_key"]: column
-    for column in app_tables.inventory_columns.search(active=True)
-  }
-  if not isinstance(cell_values, list):
+  if not isinstance(row_key, str) or not isinstance(column_key, str):
+    return {"ok": False, "message": "Refresh the table and try again."}
+  row = app_tables.inventory_rows.get(row_key=row_key, active=True)
+  column = app_tables.inventory_columns.get(column_key=column_key, active=True)
+  if row is None or column is None:
     return {"ok": False, "message": "Refresh the table and try again."}
 
-  submitted = set()
-  values_to_save = []
-  for value in cell_values:
-    if not isinstance(value, dict):
-      return {"ok": False, "message": "Refresh the table and try again."}
-    row_key = value.get("row_key")
-    column_key = value.get("column_key")
-    if not isinstance(row_key, str) or not isinstance(column_key, str):
-      return {"ok": False, "message": "Refresh the table and try again."}
-    row = rows_by_key.get(row_key)
-    column = columns_by_key.get(column_key)
-    cell_key = (row_key, column_key)
-    if row is None or column is None or cell_key in submitted:
-      return {"ok": False, "message": "Refresh the table and try again."}
-    submitted.add(cell_key)
-
-    raw_quantity = value.get("quantity")
-    if skip_blank and (raw_quantity is None or (isinstance(raw_quantity, str) and not raw_quantity.strip())):
-      continue
-    quantity = _parse_quantity(raw_quantity)
-    if quantity is None:
-      return {
-        "ok": False,
-        "message": f"Enter a zero or greater number for {row['label']} · {column['label']}.",
-      }
-    values_to_save.append((row, column, quantity))
-
-  if not values_to_save:
-    return {"ok": False, "message": "Enter a quantity in at least one cell."}
+  quantity = _parse_quantity(raw_quantity)
+  if quantity is None:
+    return {
+      "ok": False,
+      "message": f"Enter a zero or greater number for {row['label']} · {column['label']}.",
+    }
 
   entered_at = datetime.now()
-  entry_id = uuid.uuid4().hex
-  for row, column, quantity in values_to_save:
-    matches = list(app_tables.inventory_cells.search(
-      row_key=row["row_key"],
-      column_key=column["column_key"],
-    ))
-    if matches:
-      latest = matches[0]
-    else:
-      latest = app_tables.inventory_cells.add_row(
-        row_key=row["row_key"],
-        column_key=column["column_key"],
-        quantity=quantity,
-        entered_by=initials,
-        entered_at=entered_at,
-      )
-    latest["quantity"] = quantity
-    latest["entered_by"] = initials
-    latest["entered_at"] = entered_at
-    app_tables.inventory_history.add_row(
-      entry_id=entry_id,
-      row_key=row["row_key"],
-      row_label=row["label"],
-      column_key=column["column_key"],
-      column_label=column["label"],
-      quantity=quantity,
-      entered_by=initials,
-      entered_at=entered_at,
-    )
-
-  return {"ok": True, "saved_count": len(values_to_save)}
-
-
-@anvil.server.callable
-def save_grid_counts(initials, cell_values):
-  return _save_grid_values(initials, cell_values, skip_blank=True)
-
-
-@anvil.server.callable
-def save_grid_cell(initials, row_key, column_key, quantity):
-  return _save_grid_values(
-    initials,
-    [{"row_key": row_key, "column_key": column_key, "quantity": quantity}],
-    skip_blank=False,
+  # search() rather than get(): a concurrent first save can leave a duplicate.
+  latest = next(iter(app_tables.inventory_cells.search(row_key=row_key, column_key=column_key)), None)
+  if latest is None:
+    latest = app_tables.inventory_cells.add_row(row_key=row_key, column_key=column_key)
+  latest.update(quantity=quantity, entered_by=initials, entered_at=entered_at)
+  app_tables.inventory_history.add_row(
+    entry_id=uuid.uuid4().hex,
+    row_key=row_key,
+    row_label=row["label"],
+    column_key=column_key,
+    column_label=column["label"],
+    quantity=quantity,
+    entered_by=initials,
+    entered_at=entered_at,
   )
+
+  return {
+    "ok": True,
+    "entry_quantity": _format_quantity(quantity),
+    "latest_display": _format_latest(latest),
+  }

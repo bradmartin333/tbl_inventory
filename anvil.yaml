@@ -45,7 +45,6 @@ db_schema:
     client: none
     columns:
     - {name: settings_key, type: string}
-    - {name: title, type: string}
     - {name: row_heading, type: string}
     server: full
     title: Inventory table settings
