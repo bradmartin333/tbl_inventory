@@ -132,7 +132,9 @@ def get_inventory_grid():
         "row_key": row["row_key"],
         "column_key": column["column_key"],
         "column_label": column["label"],
-        "entry_quantity": _format_quantity(saved["quantity"] if saved else None),
+        # A cell nobody has counted yet starts at 0. Nothing is written until
+        # someone saves, so no history entry is invented for it.
+        "entry_quantity": _format_quantity(saved["quantity"] if saved else 0),
         "latest_display": _format_latest(saved),
       })
     grid_rows.append({
