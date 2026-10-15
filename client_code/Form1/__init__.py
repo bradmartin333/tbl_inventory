@@ -70,7 +70,7 @@ class Form1(Form1Template):
   def _show_wizard_step(self):
     total_steps = len(self._wizard_cells)
     complete = self._wizard_index >= total_steps
-    self.wizard_quantity_box.visible = not complete
+    self.dom_nodes["wizard_quantity_field"].style.display = "none" if complete else ""
     self.wizard_zero_button.visible = not complete
     self.wizard_next_button.visible = not complete
     self.wizard_close_button.visible = complete

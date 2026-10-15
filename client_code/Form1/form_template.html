@@ -7,7 +7,7 @@
             <anvil-component type="Button" name="customize_tab_button" prop:text="Customize" prop:role="workspace-tab"></anvil-component>
             <anvil-component type="Button" name="charts_tab_button" prop:text="Charts" prop:role="workspace-tab"></anvil-component>
             <anvil-component type="Button" name="digest_tab_button" prop:text="Weekly digest" prop:role="workspace-tab"></anvil-component>
-            <anvil-component type="Button" name="refresh_button" prop:text="Refresh latest" prop:role="refresh-button" prop:spacing='{"padding":[0,null,null,null]}'></anvil-component>
+            <anvil-component type="Button" name="refresh_button" prop:text="Refresh" prop:role="refresh-button"></anvil-component>
         </nav>
     
         <anvil-component type="ColumnPanel" name="grid_entry_panel" prop:role="workspace-panel">
@@ -44,7 +44,7 @@
                           <anvil-component type="TextBox" name="wizard_initials_box" prop:placeholder="AB" prop:role="initials-input"></anvil-component>
                       </label>
                   </div>
-                  <div class="wizard-quantity-field">
+                  <div class="wizard-quantity-field" anvil:dom-node="wizard_quantity_field">
                       <label>Quantity
                           <anvil-component type="TextBox" name="wizard_quantity_box" prop:placeholder="Enter quantity" prop:role="wizard-quantity"></anvil-component>
                       </label>
