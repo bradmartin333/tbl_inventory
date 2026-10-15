@@ -3,8 +3,10 @@ unique_ids:
     theme.css: LD7R5QIR4JAWW22QCNSAB7L6UTHFIHZI
   forms:
     Form1: JM6B7VAEYJSMY5SU5UPCIT5KM6SYCOK6
+    Form1.InventoryRow: '1792047604512.5615775186494585'
     Layouts.BaseLayout: GCLYLDBCDDY5CP3TZ2LJS2RBIVK3LRLK
   modules:
     Layouts: SKULOD4IYCBYY6U4RJYXHT7PGRSF56T4
   scripts: {}
-  server_modules: {}
+  server_modules:
+    Inventory: '1792047604514.37176364911271176'

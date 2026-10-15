@@ -1,4 +1,29 @@
 allow_embedding: false
+db_schema:
+  inventory_entries:
+    client: none
+    columns:
+    - {name: entry_id, type: string}
+    - {name: item_key, type: string}
+    - {name: item_name, type: string}
+    - {name: quantity, type: number}
+    - {name: entered_by, type: string}
+    - {name: entered_at, type: datetime}
+    server: full
+    title: Inventory entry history
+  inventory_items:
+    client: none
+    columns:
+    - {name: item_key, type: string}
+    - {name: name, type: string}
+    - {name: unit, type: string}
+    - {name: sort_order, type: number}
+    - {name: active, type: bool}
+    - {name: latest_quantity, type: number}
+    - {name: latest_entered_by, type: string}
+    - {name: latest_entered_at, type: datetime}
+    server: full
+    title: Inventory items
 name: Minimal Theme 1
 package_name: Minimal_Theme_1
 runtime_options:

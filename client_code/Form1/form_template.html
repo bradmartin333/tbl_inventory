@@ -1,9 +1,38 @@
 <anvil-form layout="Minimal_Theme_1.Layouts.BaseLayout">
     <anvil-block slot="actions"></anvil-block>
     <anvil-block slot="content">
-        <anvil-component type="ColumnPanel" name="column_panel_1" prop:role="card" designer:placeholder="Add components here"></anvil-component>
+        <section class="inventory-page">
+            <div class="inventory-intro">
+                <p class="inventory-kicker">Shared stocktake</p>
+                <p class="inventory-description">Enter the bar’s current quantities. Each save keeps a dated record so you can review changes over time.</p>
+            </div>
+
+            <div class="inventory-card">
+                <div class="stocktake-toolbar">
+                    <div class="initials-field">
+                        <label>Your initials
+                            <anvil-component type="TextBox" name="initials_box" prop:placeholder="AB" prop:role="initials-input"></anvil-component>
+                        </label>
+                    </div>
+                    <anvil-component type="Button" name="save_button" prop:text="Save stocktake" prop:role="save-stocktake"></anvil-component>
+                </div>
+                <anvil-component type="Label" name="status_label" prop:role="inventory-status"></anvil-component>
+
+                <div class="inventory-grid">
+                    <div class="inventory-header" aria-hidden="true">
+                        <span>Inventory item</span>
+                        <span>Quantity</span>
+                        <span>Unit</span>
+                        <span>Last counted</span>
+                        <span>Counted by</span>
+                    </div>
+                    <anvil-component type="RepeatingPanel" name="inventory_panel" prop:item_template="Minimal_Theme_1.Form1.InventoryRow" prop:role="inventory-rows"></anvil-component>
+                </div>
+                <p class="inventory-footnote">Enter a quantity for every item. Each save records one dated stocktake, and quantities must be zero or greater.</p>
+            </div>
+        </section>
     </anvil-block>
     <anvil-block slot="title">
-        <anvil-component type="Label" name="label_1" prop:role="h1" prop:text="Home"></anvil-component>
+        <anvil-component type="Label" name="title_label" prop:role="h1" prop:text="Inventory"></anvil-component>
     </anvil-block>
 </anvil-form>

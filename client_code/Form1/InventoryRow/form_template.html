@@ -1,0 +1,22 @@
+<div class="inventory-row">
+    <div class="inventory-cell item-cell">
+        <span class="mobile-cell-label">Item</span>
+        <anvil-component type="Label" name="item_name_label" bind:text="self.item['name']"></anvil-component>
+    </div>
+    <div class="inventory-cell quantity-cell">
+        <span class="mobile-cell-label">Count</span>
+        <anvil-component type="TextBox" name="quantity_box" writeback:text="self.item['entry_quantity']" prop:placeholder="Enter quantity" prop:role="quantity-input"></anvil-component>
+    </div>
+    <div class="inventory-cell unit-cell">
+        <span class="mobile-cell-label">Unit</span>
+        <anvil-component type="Label" name="unit_label" bind:text="self.item['unit']"></anvil-component>
+    </div>
+    <div class="inventory-cell latest-cell">
+        <span class="mobile-cell-label">Last counted</span>
+        <anvil-component type="Label" name="latest_date_label" bind:text="self.item['latest_date_display']"></anvil-component>
+    </div>
+    <div class="inventory-cell counted-by-cell">
+        <span class="mobile-cell-label">Counted by</span>
+        <anvil-component type="Label" name="counted_by_label" bind:text="self.item['latest_by_display']"></anvil-component>
+    </div>
+</div>
