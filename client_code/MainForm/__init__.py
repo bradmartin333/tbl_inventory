@@ -14,7 +14,7 @@ NO_INITIALS_MESSAGE = (
 class MainForm(MainFormTemplate):
   def __init__(self, **properties):
     super().__init__(**properties)
-    self.user = anvil.users.login_with_form()
+    self.user = anvil.users.get_user() or self._log_in_or_activate()
     self.user_email_label.text = self.user["email"]
     self._error_notification = None
     self._saves_in_flight = 0
@@ -23,6 +23,44 @@ class MainForm(MainFormTemplate):
     self.rows_panel.add_event_handler("x-save-cell", self._save_grid_cell)
     self._set_active_tab("grid")
     self._load_latest_counts()
+
+  def _log_in_or_activate(self):
+    # Anvil's own sign-up tab is off so strangers can't make accounts; an
+    # admin-added email activates here instead.
+    while True:
+      choice = alert(
+        "Log in, or activate the account an admin set up for you.",
+        title="TBL Inventory",
+        buttons=[("Log in", "login"), ("Activate account", "activate")],
+        dismissible=False,
+      )
+      if choice == "login":
+        user = anvil.users.login_with_form(allow_cancel=True)
+        if user:
+          return user
+      else:
+        self._activate_account()
+
+  def _activate_account(self):
+    email_box = TextBox(placeholder="Email", type="email")
+    password_box = TextBox(placeholder="Password", hide_text=True)
+    repeat_box = TextBox(placeholder="Repeat password", hide_text=True)
+    panel = ColumnPanel()
+    for box in (email_box, password_box, repeat_box):
+      panel.add_component(box)
+
+    while alert(panel, title="Activate account", buttons=[("Activate", True), ("Back", False)]):
+      if password_box.text != repeat_box.text:
+        Notification("Passwords don't match.", style="warning").show()
+        continue
+      result = anvil.server.call("activate_account", email_box.text, password_box.text)
+      if result["ok"]:
+        alert(
+          "Check your email for a confirmation link, then log in with your new password.",
+          title="Almost done",
+        )
+        return
+      Notification(result["message"], style="warning").show()
 
   def _set_active_tab(self, active_tab):
     panels = {

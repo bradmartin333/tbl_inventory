@@ -76,6 +76,48 @@ def _user_initials(user):
   return initials
 
 
+@anvil.server.callable
+def activate_account(email, password):
+  # Built-in sign-up is off: only an email an admin has added, enabled and
+  # given initials can set a first password here.
+  not_invited = {
+    "ok": False,
+    "message": "That email hasn't been set up yet. Ask an admin to add it, then try again.",
+  }
+  if not isinstance(email, str) or not isinstance(password, str):
+    return not_invited
+  email = email.strip()
+  invited = next(
+    (
+      user for user in app_tables.users.search()
+      if (user["email"] or "").strip().casefold() == email.casefold()
+    ),
+    None,
+  )
+  if invited is None or not invited["enabled"] or _user_initials(invited) is None:
+    return not_invited
+  if invited["password_hash"]:
+    return {
+      "ok": False,
+      "message": 'This account is already active. Log in, or use "Forgot password" on the login screen.',
+    }
+
+  # signup_with_email refuses an email that already has a row, so swap the
+  # admin's row for a real signup and carry the initials over. Going through
+  # Anvil keeps its password checks and the confirmation email.
+  initials = invited["initials"]
+  invited.delete()
+  try:
+    user = anvil.users.signup_with_email(email, password)
+  except Exception as error:
+    app_tables.users.add_row(email=email, enabled=True, initials=initials)
+    if isinstance(error, anvil.users.PasswordNotAcceptable):
+      return {"ok": False, "message": str(error) or "Choose a stronger password."}
+    raise
+  user.update(enabled=True, initials=initials)
+  return {"ok": True}
+
+
 def _active_ordered(table):
   items = list(table.search(active=True))
   items.sort(key=lambda item: item["sort_order"] or 0)
