@@ -403,6 +403,7 @@ input.anvil-role-initials-input {
   min-height: 56px;
   border-bottom: 2px solid var(--blank-text);
   background: var(--blank-surface-muted);
+  color: var(--blank-primary-dark);
 }
 
 .matrix-row {
