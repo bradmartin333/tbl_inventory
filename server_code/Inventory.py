@@ -45,7 +45,11 @@ def _format_quantity(quantity):
 def _format_latest(cell):
   if cell is None or not cell["entered_at"]:
     return "Not entered"
-  date_text = cell["entered_at"].strftime("%m/%d/%y")
+  # Short enough to fit under a number in a phone-width grid cell; the year
+  # only shows once it isn't this year's.
+  entered_at = cell["entered_at"]
+  date_format = "%m/%d" if entered_at.year == datetime.now().year else "%m/%d/%y"
+  date_text = entered_at.strftime(date_format)
   return f"{cell['entered_by']} · {date_text}"
 
 

@@ -510,48 +510,47 @@ input.anvil-role-matrix-quantity {
 
 @media (max-width: 760px) {
   .page-main {
-    width: calc(100% - 20px);
-    padding: 12px 0 32px;
+    width: calc(100% - 16px);
+    padding: 10px 0 32px;
   }
 
-  /* One line: clock on the left, email shortened to fit before Log out. */
-  .user-bar {
-    gap: 8px;
-    margin-bottom: 10px;
+  /* Anvil wraps label and button text in an inner span that allows
+     wrapping, so the no-wrap rules below target it too. */
+  .user-bar,
+  .workspace-tabs {
+    gap: 6px;
+    margin-bottom: 8px;
   }
 
-  .anvil-role-current-datetime,
-  .anvil-role-user-email {
+  .user-bar *,
+  .workspace-tabs * {
+    white-space: nowrap;
+  }
+
+  .anvil-role-current-datetime {
     font-size: 13px;
+  }
+
+  /* The initials already say who is logged in; the email only crowds the row. */
+  .anvil-role-user-email {
+    display: none;
   }
 
   .anvil-role-user-initials {
     min-width: 0;
-    padding: 4px 8px;
+    padding: 3px 8px;
     font-size: 12px;
   }
 
-  .anvil-role-user-email {
-    flex: 1 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    text-align: right;
-  }
-
   .user-bar .anvil-button > button {
-    min-height: 32px;
+    min-height: 30px;
     padding: 0 10px;
     font-size: 13px;
-    white-space: nowrap;
   }
 
   /* Tabs stay on one row and scroll sideways rather than wrapping. */
   .workspace-tabs {
     flex-wrap: nowrap;
-    gap: 6px;
-    margin-bottom: 10px;
     overflow-x: auto;
     scrollbar-width: none;
   }
@@ -566,14 +565,20 @@ input.anvil-role-matrix-quantity {
 
   .anvil-role-workspace-tab > button,
   .anvil-role-refresh-button > button {
-    min-height: 34px;
+    min-height: 32px;
     padding: 0 10px;
-    font-size: 14px;
-    white-space: nowrap;
+    font-size: 13px;
   }
 
   .anvil-role-workspace-panel {
-    padding: 10px;
+    padding: 12px;
+  }
+
+  /* The grid already has its own bordered box; drop the card around it. */
+  .anvil-role-workspace-panel:has(.matrix-scroll) {
+    padding: 0;
+    border: none;
+    background: none;
   }
 
   .setup-fields {
@@ -581,16 +586,16 @@ input.anvil-role-matrix-quantity {
   }
 
   .guided-card {
-    padding: 16px;
+    padding: 12px;
   }
 
-  /* Tighter grid so more cells fit on a phone without sideways scrolling. */
+  /* Tighter grid so every column fits on a phone. */
   .inventory-matrix {
     min-width: 0;
   }
 
   .matrix-header {
-    min-height: 40px;
+    min-height: 0;
   }
 
   .matrix-row {
@@ -599,35 +604,42 @@ input.anvil-role-matrix-quantity {
 
   .matrix-row-heading,
   .matrix-row-label {
-    flex-basis: 110px;
-    padding: 6px 8px;
-    font-size: 14px;
-    overflow-wrap: anywhere;
+    flex-basis: 92px;
+    padding: 4px 6px;
+    font-size: 13px;
+    line-height: 1.25;
+    overflow-wrap: break-word;
+    hyphens: auto;
   }
 
   .matrix-column-heading,
   .matrix-cell {
-    min-width: 72px;
-    padding: 6px;
+    min-width: 0;
+    padding: 4px;
   }
 
   .matrix-column-heading {
     font-size: 12px;
-    line-height: 1.25;
+    line-height: 1.2;
     overflow-wrap: anywhere;
   }
 
   .matrix-cell {
-    gap: 3px;
+    gap: 2px;
   }
 
   input.anvil-role-matrix-quantity {
-    min-height: 36px;
-    padding: 4px;
+    min-height: 32px;
+    padding: 2px 4px;
     font-size: 16px;
   }
 
-  .anvil-role-cell-latest-meta {
+  .anvil-role-cell-latest-meta,
+  .anvil-role-cell-latest-meta * {
     font-size: 10px;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
