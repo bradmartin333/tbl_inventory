@@ -14,6 +14,7 @@ NO_INITIALS_MESSAGE = (
 class MainForm(MainFormTemplate):
   def __init__(self, **properties):
     super().__init__(**properties)
+    self._finish_emailed_password_reset()
     self.user = anvil.users.get_user() or self._log_in_or_activate()
     self.user_email_label.text = self.user["email"]
     self._error_notification = None
@@ -23,6 +24,21 @@ class MainForm(MainFormTemplate):
     self.rows_panel.add_event_handler("x-save-cell", self._save_grid_cell)
     self._set_active_tab("grid")
     self._load_latest_counts()
+
+  def _finish_emailed_password_reset(self):
+    # Activation links are password-reset links. Left to get_user(), Anvil sets
+    # the new password and then falls back to whoever is remembered in this
+    # browser, so the new user could never get in on a shared machine. Spot the
+    # pending reset ourselves (the same private call get_user() makes) and
+    # forget the remembered user once the password is set.
+    try:
+      anvil.server.call("anvil.private.users.get_current_user", allow_remembered=False)
+      return
+    except anvil.users.PasswordResetRequested:
+      pass
+    anvil.users.get_user(allow_remembered=False)  # shows Anvil's set-password form
+    anvil.users.logout()
+    alert("Log in with your new password to continue.", title="Password updated")
 
   def _log_in_or_activate(self):
     # Anvil's own sign-up tab is off so strangers can't make accounts; an
