@@ -11,6 +11,10 @@ DEFAULT_ROWS = ["Item 1", "Item 2", "Item 3"]
 DEFAULT_COLUMNS = ["Quantity", "Small containers", "Large containers"]
 MAX_ROWS = 50
 MAX_COLUMNS = 12
+NO_INITIALS_MESSAGE = (
+  "Your account needs initials (1–5 letters) before you can enter counts. "
+  "Ask an admin to add them, then reload this page."
+)
 
 
 def _get_settings():
@@ -72,6 +76,17 @@ def _parse_quantity(raw_quantity):
   return quantity
 
 
+def _user_initials(user):
+  # Admins type these into the users table, so hold them to the old 1–5 letter rule.
+  initials = user["initials"]
+  if not isinstance(initials, str):
+    return None
+  initials = initials.strip().upper()
+  if not initials.isalpha() or not 1 <= len(initials) <= 5:
+    return None
+  return initials
+
+
 def _active_ordered(table):
   items = list(table.search(active=True))
   items.sort(key=lambda item: item["sort_order"] or 0)
@@ -109,6 +124,7 @@ def get_inventory_grid():
     })
 
   return {
+    "initials": _user_initials(anvil.users.get_user()),
     "row_heading": settings["row_heading"],
     "rows": grid_rows,
     "columns": [
@@ -181,9 +197,9 @@ def save_inventory_configuration(row_labels_text, column_labels_text):
 
 @anvil.server.callable(require_user=True)
 def save_grid_cell(row_key, column_key, raw_quantity):
-  initials = (anvil.users.get_user()["initials"] or "").strip().upper()
-  if not initials:
-    return {"ok": False, "message": "Your account has no initials set. Ask an admin to add them."}
+  initials = _user_initials(anvil.users.get_user())
+  if initials is None:
+    return {"ok": False, "message": NO_INITIALS_MESSAGE}
 
   if not isinstance(row_key, str) or not isinstance(column_key, str):
     return {"ok": False, "message": "Refresh the table and try again."}

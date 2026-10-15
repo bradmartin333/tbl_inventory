@@ -8,6 +8,7 @@ class GridCell(GridCellTemplate):
     super().__init__(**properties)
     self._saved_text = self.item["entry_quantity"]
     self._saving = False
+    self.quantity_box.enabled = self.item["editable"]
 
   def show_saved(self, entry_quantity, latest_display):
     self._saved_text = entry_quantity

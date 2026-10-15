@@ -48,6 +48,21 @@ db_schema:
     - {name: row_heading, type: string}
     server: full
     title: Inventory table settings
+  users:
+    client: none
+    columns:
+    - {name: email, type: string}
+    - {name: enabled, type: bool}
+    - {name: last_login, type: datetime}
+    - {name: password_hash, type: string}
+    - {name: n_password_failures, type: number}
+    - {name: confirmed_email, type: bool}
+    - {name: email_confirmation_key, type: string}
+    - {name: remembered_logins, type: simpleObject}
+    - {name: signed_up, type: datetime}
+    - {name: initials, type: string}
+    server: full
+    title: Users
 metadata: {logo_img: 'asset:tbl-letters-transparent.png', title: Inventory}
 name: TBL Inventory
 package_name: TBL_Inventory

@@ -3,14 +3,21 @@ from anvil import *
 import anvil.users
 import anvil.server
 from anvil.js import window
+import time
+
+NO_INITIALS_MESSAGE = (
+  "Your account has no initials yet, so counts are view-only. "
+  "Ask an admin to add 1–5 letters to your account, then reload this page."
+)
 
 
 class Form1(Form1Template):
   def __init__(self, **properties):
     super().__init__(**properties)
     self.user = anvil.users.login_with_form()
-    self.user_initials_label.text = self.user["initials"] or "—"
     self.user_email_label.text = self.user["email"]
+    self._error_notification = None
+    self._saves_in_flight = 0
     self._wizard_cells = []
     self._wizard_index = 0
     self.rows_panel.add_event_handler("x-save-cell", self._save_grid_cell)
@@ -40,15 +47,27 @@ class Form1(Form1Template):
   def _load_latest_counts(self):
     snapshot = anvil.server.call("get_inventory_grid")
     self._snapshot = snapshot
+    # The server vets the account's initials; without them every save would be refused.
+    self._can_enter = snapshot["initials"] is not None
+    self.user_initials_label.text = snapshot["initials"] or "—"
+    for row in snapshot["rows"]:
+      for cell in row["cells"]:
+        cell["editable"] = self._can_enter
     # Rebuilding the rows briefly collapses the page, so keep the reader's place.
     scroll_y = window.scrollY
     self.matrix_row_heading.text = snapshot["row_heading"]
     self.column_headers_panel.items = snapshot["columns"]
     self.rows_panel.items = snapshot["rows"]
     window.scrollTo(window.scrollX, scroll_y)
+    if not self._can_enter:
+      self._show_error(NO_INITIALS_MESSAGE)
 
   def _show_error(self, message):
-    Notification(message, style="warning", timeout=None).show()
+    # Keep one warning on screen; a run of failed saves would otherwise stack them.
+    if self._error_notification is not None:
+      self._error_notification.hide()
+    self._error_notification = Notification(message, style="warning", timeout=None)
+    self._error_notification.show()
 
   def _open_table_editor(self):
     self.row_labels_area.text = "\n".join(self._snapshot["row_labels"])
@@ -116,6 +135,9 @@ class Form1(Form1Template):
 
   @handle("guided_tab_button", "click")
   def guided_tab_button_click(self, **event_args):
+    if not self._can_enter:
+      self._show_error(NO_INITIALS_MESSAGE)
+      return
     self._start_guided_entry()
     self._set_active_tab("guided")
 
@@ -133,8 +155,15 @@ class Form1(Form1Template):
 
   @handle("logout_button", "click")
   def logout_button_click(self, **event_args):
+    # Pressing this button blurs a focused grid cell, which starts its save;
+    # let that land while the session is still logged in.
+    deadline = time.time() + 5
+    while self._saves_in_flight and time.time() < deadline:
+      time.sleep(0.05)
     anvil.users.logout()
-    open_form("Form1")
+    # Reload rather than open_form so this user's grid and email don't sit
+    # behind the next person's login dialog.
+    window.location.reload()
 
   @handle("refresh_button", "click")
   def refresh_button_click(self, **event_args):
@@ -142,12 +171,16 @@ class Form1(Form1Template):
 
   def _save_grid_cell(self, cell, quantity, **event_args):
     # Silent call: no loading overlay while the user moves between cells.
-    result = anvil.server.call_s(
-      "save_grid_cell",
-      cell.item["row_key"],
-      cell.item["column_key"],
-      quantity,
-    )
+    self._saves_in_flight += 1
+    try:
+      result = anvil.server.call_s(
+        "save_grid_cell",
+        cell.item["row_key"],
+        cell.item["column_key"],
+        quantity,
+      )
+    finally:
+      self._saves_in_flight -= 1
     if not result["ok"]:
       cell.revert()
       self._show_error(result["message"])
