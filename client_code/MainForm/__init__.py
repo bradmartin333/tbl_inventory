@@ -14,7 +14,7 @@ NO_INITIALS_MESSAGE = (
 class MainForm(MainFormTemplate):
   def __init__(self, **properties):
     super().__init__(**properties)
-    self.user = anvil.users.login_with_form(show_signup_option=True)
+    self.user = anvil.users.login_with_form()
     self.user_email_label.text = self.user["email"]
     self._error_notification = None
     self._saves_in_flight = 0
