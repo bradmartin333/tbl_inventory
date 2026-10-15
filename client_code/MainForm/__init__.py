@@ -97,14 +97,14 @@ class MainForm(MainFormTemplate):
       "guided": self.guided_panel,
       "customize": self.table_editor_panel,
       "charts": self.charts_panel,
-      "digest": self.digest_panel,
+      "email": self.email_panel,
     }
     buttons = {
       "grid": self.grid_tab_button,
       "guided": self.guided_tab_button,
       "customize": self.customize_tab_button,
       "charts": self.charts_tab_button,
-      "digest": self.digest_tab_button,
+      "email": self.email_tab_button,
     }
 
     for tab_name, panel in panels.items():
@@ -222,9 +222,9 @@ class MainForm(MainFormTemplate):
   def charts_tab_button_click(self, **event_args):
     self._set_active_tab("charts")
 
-  @handle("digest_tab_button", "click")
-  def digest_tab_button_click(self, **event_args):
-    self._set_active_tab("digest")
+  @handle("email_tab_button", "click")
+  def email_tab_button_click(self, **event_args):
+    self._set_active_tab("email")
 
   @handle("logout_button", "click")
   def logout_button_click(self, **event_args):

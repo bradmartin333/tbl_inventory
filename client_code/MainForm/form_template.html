@@ -13,7 +13,7 @@
             <anvil-component type="Button" name="guided_tab_button" prop:text="Guided entry" prop:role="workspace-tab"></anvil-component>
             <anvil-component type="Button" name="customize_tab_button" prop:text="Customize" prop:role="workspace-tab"></anvil-component>
             <anvil-component type="Button" name="charts_tab_button" prop:text="Charts" prop:role="workspace-tab"></anvil-component>
-            <anvil-component type="Button" name="digest_tab_button" prop:text="Weekly digest" prop:role="workspace-tab"></anvil-component>
+            <anvil-component type="Button" name="email_tab_button" prop:text="Email" prop:role="workspace-tab"></anvil-component>
             <anvil-component type="Button" name="refresh_button" prop:text="Refresh" prop:role="refresh-button"></anvil-component>
         </nav>
     
@@ -85,19 +85,19 @@ Large containers"></anvil-component>
     
         <anvil-component type="ColumnPanel" name="charts_panel" prop:role="workspace-panel">
           <div class="future-feature-card">
-              <p class="inventory-kicker">Planned feature</p>
+              <p class="inventory-kicker">feature</p>
               <h2>Charts from your inventory history</h2>
               <p>Each saved quantity is stored with its row, column, initials, and date. That history can support charts and trends when you decide to add them.</p>
-              <span class="feature-status">Ready for a future release</span>
+              <span class="feature-status">Supported by existing database</span>
           </div>
         </anvil-component>
     
-        <anvil-component type="ColumnPanel" name="digest_panel" prop:role="workspace-panel">
+        <anvil-component type="ColumnPanel" name="email_panel" prop:role="workspace-panel">
           <div class="future-feature-card">
-              <p class="inventory-kicker">Paid tier idea</p>
-              <h2>Weekly email digest</h2>
-              <p>A scheduled job could send a weekly summary of inventory changes to your team. Email scheduling is not enabled yet.</p>
-              <span class="feature-status">Planned for a paid tier</span>
+              <p style class="inventory-kicker">feature</p>
+              <h2 style>Weekly digest and triggered emails</h2>
+              <p style>A scheduled job could send a weekly summary of inventory changes to your team. On-par values can be added for an entry's accepted days-since-entry and quantities. Triggered on-par alerts can change grid cell styling and send an email to specified users.</p>
+              <span style class="feature-status">Can easily be integrated with a Google account</span>
           </div>
         </anvil-component>
     </section>
