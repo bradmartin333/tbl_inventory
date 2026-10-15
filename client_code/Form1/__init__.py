@@ -34,14 +34,21 @@ class Form1(Form1Template):
   def _load_latest_counts(self):
     snapshot = anvil.server.call("get_inventory_grid")
     self._snapshot = snapshot
-    self.matrix_row_heading.text = snapshot["settings"]["row_heading"]
+    self.matrix_row_heading.text = snapshot["row_heading"]
     self.column_headers_panel.items = snapshot["columns"]
     self.rows_panel.items = snapshot["rows"]
 
+  def _show_error(self, message):
+    Notification(message, style="warning", timeout=None).show()
+
+  def _read_initials(self, text_box):
+    initials = (text_box.text or "").strip().upper()
+    if not initials.isalpha() or not 1 <= len(initials) <= 5:
+      self._show_error("Enter 1–5 letters for your initials.")
+      return None
+    return initials
+
   def _open_table_editor(self):
-    settings = self._snapshot["settings"]
-    self.table_title_box.text = settings["title"]
-    self.row_heading_box.text = settings["row_heading"]
     self.row_labels_area.text = "\n".join(self._snapshot["row_labels"])
     self.column_labels_area.text = "\n".join(self._snapshot["column_labels"])
     self._set_active_tab("customize")
@@ -103,9 +110,8 @@ class Form1(Form1Template):
 
   @handle("save_grid_button", "click")
   def save_grid_button_click(self, **event_args):
-    initials = (self.grid_initials_box.text or "").strip().upper()
-    if not initials.isalpha() or not 1 <= len(initials) <= 5:
-      self.status_label.text = "Enter 1–5 letters for your initials."
+    initials = self._read_initials(self.grid_initials_box)
+    if initials is None:
       return
 
     cell_values = []
@@ -124,7 +130,7 @@ class Form1(Form1Template):
       self.save_grid_button.enabled = True
 
     if not result["ok"]:
-      self.status_label.text = result["message"]
+      self._show_error(result["message"])
       return
 
     self._load_latest_counts()
@@ -135,8 +141,6 @@ class Form1(Form1Template):
     try:
       result = anvil.server.call(
         "save_inventory_configuration",
-        self.table_title_box.text,
-        self.row_heading_box.text,
         self.row_labels_area.text,
         self.column_labels_area.text,
       )
@@ -144,7 +148,7 @@ class Form1(Form1Template):
       self.save_setup_button.enabled = True
 
     if not result["ok"]:
-      self.status_label.text = result["message"]
+      self._show_error(result["message"])
       return
 
     self._wizard_cells = []
@@ -157,9 +161,8 @@ class Form1(Form1Template):
 
   @handle("wizard_save_button", "click")
   def wizard_save_button_click(self, **event_args):
-    initials = (self.wizard_initials_box.text or "").strip().upper()
-    if not initials.isalpha() or not 1 <= len(initials) <= 5:
-      self.status_label.text = "Enter 1–5 letters for your initials."
+    initials = self._read_initials(self.wizard_initials_box)
+    if initials is None:
       return
 
     row, cell = self._wizard_cells[self._wizard_index]
@@ -176,7 +179,7 @@ class Form1(Form1Template):
       self.wizard_save_button.enabled = True
 
     if not result["ok"]:
-      self.status_label.text = result["message"]
+      self._show_error(result["message"])
       return
 
     self._load_latest_counts()

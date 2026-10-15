@@ -89,16 +89,12 @@ def get_inventory_grid():
     for cell in app_tables.inventory_cells.search()
   }
 
-  latest_update = None
   grid_rows = []
   for row in rows:
     row_cells = []
     for column in columns:
       key = (row["row_key"], column["column_key"])
       saved = saved_cells.get(key)
-      if saved and saved["entered_at"]:
-        if latest_update is None or saved["entered_at"] > latest_update["entered_at"]:
-          latest_update = saved
       row_cells.append({
         "row_key": row["row_key"],
         "column_key": column["column_key"],
@@ -112,16 +108,8 @@ def get_inventory_grid():
       "cells": row_cells,
     })
 
-  latest_update_display = "No values entered yet"
-  if latest_update:
-    latest_date = latest_update["entered_at"].strftime("%b %d, %Y")
-    latest_update_display = f"{latest_update['entered_by']} · {latest_date}"
-
   return {
-    "settings": {
-      "title": settings["title"],
-      "row_heading": settings["row_heading"],
-    },
+    "row_heading": settings["row_heading"],
     "rows": grid_rows,
     "columns": [
       {"column_key": column["column_key"], "label": column["label"]}
@@ -129,7 +117,6 @@ def get_inventory_grid():
     ],
     "row_labels": [row["label"] for row in rows],
     "column_labels": [column["label"] for column in columns],
-    "latest_update_display": latest_update_display,
   }
 
 
@@ -176,16 +163,10 @@ def _reconcile_labels(table, labels, key_name):
 
 
 @anvil.server.callable
-def save_inventory_configuration(title, row_heading, row_labels_text, column_labels_text):
-  title = title.strip() if isinstance(title, str) else ""
-  row_heading = row_heading.strip() if isinstance(row_heading, str) else ""
+def save_inventory_configuration(row_labels_text, column_labels_text):
   row_labels = _split_labels(row_labels_text)
   column_labels = _split_labels(column_labels_text)
 
-  if not title or len(title) > 80:
-    return {"ok": False, "message": "Enter a table title up to 80 characters long."}
-  if not row_heading or len(row_heading) > 40:
-    return {"ok": False, "message": "Enter a first-column heading up to 40 characters long."}
   if row_labels is None or not 1 <= len(row_labels) <= MAX_ROWS:
     return {"ok": False, "message": f"Enter 1–{MAX_ROWS} unique row labels, one per line."}
   if column_labels is None or not 1 <= len(column_labels) <= MAX_COLUMNS:
@@ -193,10 +174,6 @@ def save_inventory_configuration(title, row_heading, row_labels_text, column_lab
   if any(len(label) > 60 for label in row_labels + column_labels):
     return {"ok": False, "message": "Keep each row and column label under 60 characters."}
 
-  _ensure_default_grid()
-  settings = _get_settings()
-  settings["title"] = title
-  settings["row_heading"] = row_heading
   _reconcile_labels(app_tables.inventory_rows, row_labels, "row_key")
   _reconcile_labels(app_tables.inventory_columns, column_labels, "column_key")
   return {"ok": True}

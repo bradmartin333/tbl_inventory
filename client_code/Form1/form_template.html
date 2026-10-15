@@ -1,20 +1,13 @@
 <anvil-form layout="the_bike_library_inventory.Layouts.BaseLayout">
-  <anvil-block slot="actions"></anvil-block>
   <anvil-block slot="content">
-    <section class="inventory-workspace">
-        <div class="inventory-toolbar">
-            <div class="latest-update">
-                <anvil-dropzone name="$dz_wqj6v4"></anvil-dropzone>
-            </div>
-        </div>
-    
-        <nav aria-label="Inventory workspace" class="workspace-tabs" style="border: none; height: 3em;">
+    <section>
+        <nav aria-label="Inventory workspace" class="workspace-tabs">
             <anvil-component type="Button" name="grid_tab_button" prop:text="Grid entry" prop:role="workspace-tab"></anvil-component>
             <anvil-component type="Button" name="guided_tab_button" prop:text="Guided entry" prop:role="workspace-tab"></anvil-component>
             <anvil-component type="Button" name="customize_tab_button" prop:text="Customize" prop:role="workspace-tab"></anvil-component>
             <anvil-component type="Button" name="charts_tab_button" prop:text="Charts" prop:role="workspace-tab"></anvil-component>
             <anvil-component type="Button" name="digest_tab_button" prop:text="Weekly digest" prop:role="workspace-tab"></anvil-component>
-            <anvil-component type="Button" name="refresh_button" prop:text="Refresh latest" prop:role="null" prop:spacing='{"padding":[0,null,null,null]}' prop:background="theme:Muted" prop:foreground="theme:Surface Muted"></anvil-component>
+            <anvil-component type="Button" name="refresh_button" prop:text="Refresh latest" prop:role="refresh-button" prop:spacing='{"padding":[0,null,null,null]}'></anvil-component>
         </nav>
     
         <anvil-component type="ColumnPanel" name="grid_entry_panel" prop:role="workspace-panel">
@@ -36,17 +29,13 @@
                       </div>
                       <anvil-component type="RepeatingPanel" name="column_headers_panel" prop:item_template="the_bike_library_inventory.Form1.ColumnHeading" prop:role="matrix-column-headers"></anvil-component>
                   </div>
-                  <anvil-component type="RepeatingPanel" name="rows_panel" prop:item_template="the_bike_library_inventory.Form1.GridRow" prop:role="matrix-rows"></anvil-component>
+                  <anvil-component type="RepeatingPanel" name="rows_panel" prop:item_template="the_bike_library_inventory.Form1.GridRow"></anvil-component>
               </div>
           </div>
         </anvil-component>
     
         <anvil-component type="ColumnPanel" name="guided_panel" prop:role="workspace-panel">
-          <div class="workspace-panel-heading">
-              <div>
-                  <h2>Enter one quantity at a time</h2>
-              </div>
-          </div>
+          <h2 class="workspace-panel-heading">Enter one quantity at a time</h2>
           <div class="guided-card">
               <div class="guided-copy">
                   <anvil-component type="Label" name="wizard_step_label" prop:role="wizard-step"></anvil-component>
@@ -73,29 +62,21 @@
         </anvil-component>
     
         <anvil-component type="ColumnPanel" name="table_editor_panel" prop:role="workspace-panel">
-          <div class="workspace-panel-heading">
-              <div>
-                  <h2>Shape this table</h2>
-              </div>
-          </div>
+          <h2 class="workspace-panel-heading">Shape this table</h2>
           <div class="setup-fields">
               <div class="setup-field">
-                  <anvil-dropzone name="$dz_ucvnpc"></anvil-dropzone>
-              </div>
-              <div class="setup-field">
-                  <anvil-dropzone name="$dz_pfeqdc"></anvil-dropzone>
-              </div>
-              <div class="setup-field">
-                  <label>Rows</label>
-                  <anvil-component type="TextArea" name="row_labels_area" prop:placeholder="Item 1
+                  <label>Rows
+                      <anvil-component type="TextArea" name="row_labels_area" prop:placeholder="Item 1
 Item 2
 Item 3"></anvil-component>
+                  </label>
               </div>
               <div class="setup-field">
-                  <label style>Columns</label>
-                  <anvil-component type="TextArea" name="column_labels_area" prop:placeholder="Quantity
+                  <label>Columns
+                      <anvil-component type="TextArea" name="column_labels_area" prop:placeholder="Quantity
 Small containers
 Large containers"></anvil-component>
+                  </label>
               </div>
           </div>
           <div class="setup-actions">
@@ -123,5 +104,4 @@ Large containers"></anvil-component>
         </anvil-component>
     </section>
   </anvil-block>
-  <anvil-block slot="title"></anvil-block>
 </anvil-form>

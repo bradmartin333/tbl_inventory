@@ -14,14 +14,28 @@ color_scheme:
   - {color: '#eef5f7', name: Surface Muted}
 roles:
 - components: [Button]
+  name: refresh-button
+- components: [Button]
+  name: save-grid
+- components: [Button]
   name: secondary-button
-- components: [Label]
-  name: eyebrow
-- components: [Label]
-  name: h1
-- components: [Label]
-  name: lede
+- components: [Button]
+  name: workspace-tab
 - components: [ColumnPanel]
-  display_in_toolbox: true
-  name: card
-  title: Card
+  name: workspace-panel
+- components: [Label]
+  name: cell-latest-meta
+- components: [Label]
+  name: wizard-step
+- components: [Label]
+  name: wizard-target
+- components: [RepeatingPanel]
+  name: matrix-column-headers
+- components: [RepeatingPanel]
+  name: matrix-row-cells
+- components: [TextBox]
+  name: initials-input
+- components: [TextBox]
+  name: matrix-quantity
+- components: [TextBox]
+  name: wizard-quantity
