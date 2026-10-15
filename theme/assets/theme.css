@@ -218,6 +218,14 @@ textarea.anvil-text-area:disabled {
   text-align: center;
 }
 
+.anvil-role-current-datetime {
+  margin-right: auto;
+  color: var(--blank-muted);
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .anvil-role-user-email {
   color: var(--blank-muted);
   font-size: 14px;
@@ -519,5 +527,50 @@ input.anvil-role-matrix-quantity {
 
   .guided-card {
     padding: 16px;
+  }
+
+  /* Tighter grid so more cells fit on a phone without sideways scrolling. */
+  .inventory-matrix {
+    min-width: 0;
+  }
+
+  .matrix-header {
+    min-height: 40px;
+  }
+
+  .matrix-row {
+    min-height: 0;
+  }
+
+  .matrix-row-heading,
+  .matrix-row-label {
+    flex-basis: 110px;
+    padding: 6px 8px;
+    font-size: 14px;
+    overflow-wrap: anywhere;
+  }
+
+  .matrix-column-heading,
+  .matrix-cell {
+    min-width: 72px;
+    padding: 6px;
+  }
+
+  .matrix-column-heading {
+    font-size: 13px;
+  }
+
+  .matrix-cell {
+    gap: 3px;
+  }
+
+  input.anvil-role-matrix-quantity {
+    min-height: 36px;
+    padding: 4px;
+    font-size: 16px;
+  }
+
+  .anvil-role-cell-latest-meta {
+    font-size: 10px;
   }
 }

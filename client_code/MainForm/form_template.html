@@ -2,6 +2,8 @@
   <anvil-block slot="content">
     <section>
         <div class="user-bar">
+            <anvil-component type="Label" name="current_datetime_label" prop:role="current-datetime"></anvil-component>
+            <anvil-component type="Timer" name="clock_timer" prop:interval="15"></anvil-component>
             <anvil-component type="Label" name="user_initials_label" prop:role="user-initials"></anvil-component>
             <anvil-component type="Label" name="user_email_label" prop:role="user-email"></anvil-component>
             <anvil-component type="Button" name="logout_button" prop:text="Log out" prop:role="secondary-button"></anvil-component>
@@ -52,6 +54,7 @@
               <div class="guided-control">
                   <anvil-component type="Button" name="wizard_zero_button" prop:text="Zero" prop:role="secondary-button"></anvil-component>
                   <anvil-component type="Button" name="wizard_next_button" prop:text="Next"></anvil-component>
+                  <anvil-component type="Button" name="wizard_exit_button" prop:text="Exit" prop:role="secondary-button"></anvil-component>
                   <anvil-component type="Button" name="wizard_close_button" prop:text="Back to grid" prop:role="secondary-button"></anvil-component>
               </div>
           </div>

@@ -4,6 +4,7 @@ import anvil.users
 import anvil.server
 from anvil.js import window
 import time
+from datetime import datetime
 
 NO_INITIALS_MESSAGE = (
   "Your account has no initials yet, so counts are view-only. "
@@ -17,6 +18,7 @@ class MainForm(MainFormTemplate):
     self._finish_emailed_password_reset()
     self.user = anvil.users.get_user() or self._log_in_or_activate()
     self.user_email_label.text = self.user["email"]
+    self._show_current_datetime()
     self._error_notification = None
     self._saves_in_flight = 0
     self._wizard_cells = []
@@ -76,6 +78,18 @@ class MainForm(MainFormTemplate):
         return
       error_label.text = result["message"]
       error_label.visible = True
+
+  def _show_current_datetime(self):
+    now = datetime.now()
+    hour = now.hour % 12 or 12
+    self.current_datetime_label.text = (
+      f"{now.strftime('%a %b')} {now.day}, {hour}:{now.minute:02d} "
+      f"{'AM' if now.hour < 12 else 'PM'}"
+    )
+
+  @handle("clock_timer", "tick")
+  def clock_timer_tick(self, **event_args):
+    self._show_current_datetime()
 
   def _set_active_tab(self, active_tab):
     panels = {
@@ -142,6 +156,7 @@ class MainForm(MainFormTemplate):
     self.dom_nodes["wizard_quick_quantities"].style.display = "none" if complete else ""
     self.wizard_zero_button.visible = not complete
     self.wizard_next_button.visible = not complete
+    self.wizard_exit_button.visible = not complete
     self.wizard_close_button.visible = complete
     if complete:
       self.wizard_step_label.text = "Guided entry complete"
@@ -156,10 +171,11 @@ class MainForm(MainFormTemplate):
       "Finish" if self._wizard_index == total_steps - 1 else "Next"
     )
 
-  def _save_wizard_step(self, quantity):
+  def _save_wizard_step(self, quantity, advance=True):
     row, cell = self._wizard_cells[self._wizard_index]
-    self.wizard_next_button.enabled = False
-    self.wizard_zero_button.enabled = False
+    wizard_buttons = (self.wizard_next_button, self.wizard_zero_button, self.wizard_exit_button)
+    for button in wizard_buttons:
+      button.enabled = False
     try:
       result = anvil.server.call(
         "save_grid_cell",
@@ -168,18 +184,23 @@ class MainForm(MainFormTemplate):
         quantity,
       )
     finally:
-      self.wizard_next_button.enabled = True
-      self.wizard_zero_button.enabled = True
+      for button in wizard_buttons:
+        button.enabled = True
 
     if not result["ok"]:
       self.wizard_quantity_box.text = cell["entry_quantity"]
       self._show_error(result["message"])
-      return
+      return False
+
+    if not advance:
+      self._load_latest_counts()
+      return True
 
     # Advance before reloading so the old step's buttons don't linger during the call.
     self._wizard_index += 1
     self._show_wizard_step()
     self._load_latest_counts()
+    return True
 
   @handle("grid_tab_button", "click")
   def grid_tab_button_click(self, **event_args):
@@ -297,6 +318,17 @@ class MainForm(MainFormTemplate):
   @handle("wizard_plus_one_button", "click")
   def wizard_plus_one_button_click(self, **event_args):
     self._set_wizard_quantity(self._wizard_quantity_value() + 1)
+
+  @handle("wizard_exit_button", "click")
+  def wizard_exit_button_click(self, **event_args):
+    # Only save an edit: re-saving an untouched value would log a duplicate
+    # entry under this user's initials.
+    _, cell = self._wizard_cells[self._wizard_index]
+    quantity = self.wizard_quantity_box.text
+    if (quantity or "") != (cell["entry_quantity"] or ""):
+      if not self._save_wizard_step(quantity, advance=False):
+        return
+    self._set_active_tab("grid")
 
   @handle("wizard_close_button", "click")
   def wizard_close_button_click(self, **event_args):
