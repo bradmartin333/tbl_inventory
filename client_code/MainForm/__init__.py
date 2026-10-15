@@ -1,4 +1,4 @@
-from ._anvil_designer import Form1Template
+from ._anvil_designer import MainFormTemplate
 from anvil import *
 import anvil.users
 import anvil.server
@@ -11,7 +11,7 @@ NO_INITIALS_MESSAGE = (
 )
 
 
-class Form1(Form1Template):
+class MainForm(MainFormTemplate):
   def __init__(self, **properties):
     super().__init__(**properties)
     self.user = anvil.users.login_with_form()

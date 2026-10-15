@@ -88,4 +88,5 @@ services:
           <p>This link will expire in ten minutes.</p>
     user_table: users
   source: /runtime/services/anvil/users.yml
-startup: {module: Form1, type: form}
+startup: {module: MainForm, type: form}
+startup_form: null
