@@ -509,16 +509,71 @@ input.anvil-role-matrix-quantity {
 }
 
 @media (max-width: 760px) {
-  .workspace-tabs {
-    gap: 6px;
+  .page-main {
+    width: calc(100% - 20px);
+    padding: 12px 0 32px;
   }
 
-  .anvil-role-workspace-tab > button {
+  /* One line: clock on the left, email shortened to fit before Log out. */
+  .user-bar {
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .anvil-role-current-datetime,
+  .anvil-role-user-email {
+    font-size: 13px;
+  }
+
+  .anvil-role-user-initials {
+    min-width: 0;
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+
+  .anvil-role-user-email {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: right;
+  }
+
+  .user-bar .anvil-button > button {
+    min-height: 32px;
     padding: 0 10px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  /* Tabs stay on one row and scroll sideways rather than wrapping. */
+  .workspace-tabs {
+    flex-wrap: nowrap;
+    gap: 6px;
+    margin-bottom: 10px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .workspace-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .workspace-tabs > * {
+    flex: 0 0 auto;
+  }
+
+  .anvil-role-workspace-tab > button,
+  .anvil-role-refresh-button > button {
+    min-height: 34px;
+    padding: 0 10px;
+    font-size: 14px;
+    white-space: nowrap;
   }
 
   .anvil-role-workspace-panel {
-    padding: 16px;
+    padding: 10px;
   }
 
   .setup-fields {
@@ -557,7 +612,9 @@ input.anvil-role-matrix-quantity {
   }
 
   .matrix-column-heading {
-    font-size: 13px;
+    font-size: 12px;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
   }
 
   .matrix-cell {

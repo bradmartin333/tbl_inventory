@@ -45,7 +45,7 @@ def _format_quantity(quantity):
 def _format_latest(cell):
   if cell is None or not cell["entered_at"]:
     return "Not entered"
-  date_text = cell["entered_at"].strftime("%b %d, %Y")
+  date_text = cell["entered_at"].strftime("%m/%d/%y")
   return f"{cell['entered_by']} · {date_text}"
 
 
