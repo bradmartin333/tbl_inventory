@@ -60,7 +60,11 @@ db_schema:
     - {name: email_confirmation_key, type: string}
     - {name: remembered_logins, type: simpleObject}
     - {name: signed_up, type: datetime}
-    - {name: initials, type: string}
+    - admin_ui: {order: 1.5}
+      client_hidden: false
+      name: initials
+      type: string
+    indexes: []
     server: full
     title: Users
 metadata: {logo_img: 'asset:tbl-letters-transparent.png', title: Inventory}
