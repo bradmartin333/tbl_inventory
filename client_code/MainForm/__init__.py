@@ -478,13 +478,14 @@ class MainForm(MainFormTemplate):
   @handle("clone_section_button", "click")
   def clone_section_button_click(self, **event_args):
     source = self._active_card
-    # No key, so the server makes new rows and columns and the copy starts
-    # with no counts of its own.
+    # No key, and marked so the server never revives an old section for it:
+    # the copy gets new rows and columns and no counts of its own.
     card = {
       "table_key": None,
       "label": self._clone_name(source["label"]),
       "row_labels_text": source["row_labels_text"],
       "column_labels_text": source["column_labels_text"],
+      "cloned": True,
     }
     self._section_cards.insert(self._active_index() + 1, card)
     self._select_section(card)

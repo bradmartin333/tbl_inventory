@@ -296,7 +296,8 @@ def _section_key(label):
 
 
 def _plan_section(section):
-  # Returns (table or None, label, row_labels, column_labels), or an error message.
+  # Returns (table or None, label, row_labels, column_labels, cloned), or an
+  # error message.
   if not isinstance(section, dict) or not isinstance(section.get("label"), str):
     return STALE_GRID_MESSAGE
   label = section["label"].strip()
@@ -321,7 +322,7 @@ def _plan_section(section):
     return f"{label}: enter 1–{MAX_COLUMNS} unique quantity columns, one per line."
   if any(len(item_label) > MAX_LABEL_LENGTH for item_label in row_labels + column_labels):
     return f"{label}: keep each row and column label under {MAX_LABEL_LENGTH} characters."
-  return table, label, row_labels, column_labels
+  return table, label, row_labels, column_labels, section.get("cloned") is True
 
 
 @anvil.server.callable(require_user=True)
@@ -348,26 +349,32 @@ def save_inventory_configuration(sections, setup_version=None):
       return {"ok": False, "message": plan}
     plans.append(plan)
   seen_labels = set()
-  for _, label, _, _ in plans:
+  for _, label, _, _, _ in plans:
     if _section_key(label) in seen_labels:
       return {"ok": False, "message": f"Two sections are called {label}. Give each a different name."}
     seen_labels.add(_section_key(label))
-  existing_keys = [table["table_key"] for table, _, _, _ in plans if table is not None]
+  existing_keys = [table["table_key"] for table, _, _, _, _ in plans if table is not None]
   if len(set(existing_keys)) != len(existing_keys):
     return {"ok": False, "message": STALE_GRID_MESSAGE}
 
-  # A new section named like one that isn't being kept (hidden earlier, or
-  # deleted in this same edit) takes that one back, so its rows, columns and
-  # counts return instead of starting empty. Active ones sort last to win.
+  # Adding or renaming a section to the name of one that isn't being kept
+  # (hidden earlier, or deleted in this same edit) takes that one back, so its
+  # rows, columns and counts return instead of starting empty. A renamed
+  # section's own data is hidden in its place, so each name keeps one set of
+  # history. Clones always start new, as Customize promises. Active ones sort
+  # last so they win over long-hidden ones.
   spare = {
     _section_key(table["label"]): table
     for table in sorted(app_tables.inventory_tables.search(), key=lambda table: bool(table["active"]))
     if table["table_key"] not in existing_keys
   }
-  plans = [
-    (table or spare.get(_section_key(label)), label, row_labels, column_labels)
-    for table, label, row_labels, column_labels in plans
-  ]
+  resolved = []
+  for table, label, row_labels, column_labels, cloned in plans:
+    renamed = table is not None and _section_key(table["label"]) != _section_key(label)
+    if not cloned and (table is None or renamed):
+      table = spare.get(_section_key(label), table)
+    resolved.append((table, label, row_labels, column_labels))
+  plans = resolved
 
   used_keys = set()
   for order, (table, label, row_labels, column_labels) in enumerate(plans, start=1):
