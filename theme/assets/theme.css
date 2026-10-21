@@ -16,12 +16,6 @@
 
 /* Base */
 
-/* Keep the scrollbar's space even when a short tab doesn't scroll, so
-   switching tabs doesn't nudge the page sideways. */
-html {
-  scrollbar-gutter: stable;
-}
-
 body {
   min-height: calc(100vh - var(--anvil-banner-height, 0px));
   margin: 0;
@@ -139,12 +133,6 @@ textarea.anvil-text-area:disabled {
   color: var(--blank-text);
   border: 1px solid var(--blank-border);
   border-radius: 8px;
-}
-
-/* Anvil focuses this shell when a dialog opens. With no click first, as on
-   the login dialog, the browser rings it like a second border. */
-.anvil-modal-dialog:focus {
-  outline: none;
 }
 
 .anvil-modal-header {
@@ -307,11 +295,20 @@ textarea.anvil-text-area:disabled {
   font-size: 22px;
 }
 
+.setup-actions,
 .guided-control {
   display: flex;
-  flex-wrap: wrap;
   align-items: flex-start;
   gap: 10px;
+}
+
+.setup-actions {
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.guided-control {
+  flex-wrap: wrap;
 }
 
 .guided-quick-quantities {
@@ -394,13 +391,6 @@ input.anvil-role-wizard-quantity {
   padding: 8px 4px;
 }
 
-/* A panel with more than one planned feature rules them apart. */
-.future-feature-card + .future-feature-card {
-  margin-top: 20px;
-  padding-top: 20px;
-  border-top: 1px solid var(--blank-border);
-}
-
 .future-feature-card .inventory-kicker {
   margin: 0 0 8px;
   color: var(--blank-primary);
@@ -434,13 +424,15 @@ input.anvil-role-wizard-quantity {
 
 /* Inventory matrix */
 
-/* The section card supplies the border, so the grid sits flush inside it. */
 .matrix-scroll {
   overflow-x: auto;
+  border: 1px solid var(--blank-border);
+  border-radius: 8px;
+  background: var(--blank-surface);
 }
 
 .inventory-matrix {
-  min-width: max(560px, calc(180px + var(--matrix-columns, 0) * 96px));
+  min-width: 560px;
 }
 
 .matrix-header,
@@ -538,196 +530,6 @@ input.anvil-role-matrix-quantity {
   text-align: center;
 }
 
-/* Grid sections */
-
-.anvil-role-grid-sections > div {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-/* Each section is one card: the toggle is its title bar and the grid hangs
-   directly beneath, rather than a button floating above a separate box. */
-.grid-section {
-  overflow: hidden;
-  border: 1px solid var(--blank-border);
-  border-radius: 8px;
-  background: var(--blank-surface);
-}
-
-.anvil-role-section-toggle {
-  width: 100%;
-}
-
-.anvil-role-section-toggle > button,
-.anvil-role-section-toggle > button:hover,
-.anvil-role-section-toggle > button:focus {
-  justify-content: flex-start;
-  width: 100%;
-  min-height: 44px;
-  margin: 0;
-  border: none;
-  border-radius: 0;
-  background: var(--blank-surface-muted);
-  color: var(--blank-primary-dark);
-  font-size: 16px;
-  text-align: left;
-}
-
-.grid-section.is-expanded .anvil-role-section-toggle > button {
-  border-bottom: 1px solid var(--blank-border);
-}
-
-.anvil-role-section-toggle > button:hover {
-  color: var(--blank-primary);
-}
-
-.anvil-role-section-toggle > button:focus-visible {
-  box-shadow: inset 0 0 0 3px var(--blank-focus-ring);
-}
-
-/* Section setup */
-
-/* Stays in view while scrolling long row lists, so saving is always a tap away. */
-.customize-header {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 18px;
-  padding: 6px 0;
-  background: var(--blank-surface);
-}
-
-.customize-header .workspace-panel-heading {
-  margin: 0;
-}
-
-.customize-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.anvil-role-edited-status > button:disabled,
-.anvil-role-edited-status > button:disabled:hover {
-  border-color: transparent;
-  background: var(--blank-surface-muted);
-  color: var(--blank-muted);
-  opacity: 1;
-  cursor: default;
-}
-
-.setup-sections-field > label {
-  margin-bottom: 6px;
-}
-
-.setup-add-row {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
-.setup-add-row > input.anvil-text-box {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-/* A square "+" the height of the name box; its tooltip names it. */
-.setup-add-row > .anvil-button > button {
-  width: 42px;
-  height: 42px;
-  min-height: 42px;
-  padding: 0;
-  font-size: 22px;
-  line-height: 1;
-}
-
-/* The 1px gaps over a border-colored backing draw the dividers, whatever
-   wrappers Anvil puts around each item. */
-.anvil-role-section-list > div {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  overflow: hidden;
-  border: 1px solid var(--blank-border);
-  border-radius: 8px;
-  background: var(--blank-border);
-}
-
-.anvil-role-section-list-item > button,
-.anvil-role-section-list-item > button:hover,
-.anvil-role-section-list-item > button:focus {
-  justify-content: flex-start;
-  width: 100%;
-  min-height: 44px;
-  border: none;
-  border-radius: 0;
-  background: var(--blank-surface);
-  color: var(--blank-text);
-  font-weight: 400;
-  text-align: left;
-}
-
-.anvil-role-section-list-item > button:hover {
-  background: var(--blank-control-bg-hover);
-}
-
-.anvil-role-section-list-item > button:focus-visible {
-  box-shadow: inset 0 0 0 3px var(--blank-focus-ring);
-}
-
-.section-list-item.is-selected .anvil-role-section-list-item > button {
-  box-shadow: inset 4px 0 0 var(--blank-primary);
-  background: var(--blank-surface-muted);
-  color: var(--blank-primary-dark);
-  font-weight: 700;
-}
-
-.section-list-item.is-selected .anvil-role-section-list-item > button:focus-visible {
-  box-shadow: inset 4px 0 0 var(--blank-primary), inset 0 0 0 3px var(--blank-focus-ring);
-}
-
-.section-toolbox {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 8px 0 0;
-}
-
-.setup-hint {
-  margin: 6px 0 0;
-  color: var(--blank-muted);
-  font-size: 13px;
-}
-
-.section-editor {
-  margin-top: 16px;
-  padding: 16px;
-  border: 1px solid var(--blank-border);
-  border-radius: 8px;
-  background: var(--blank-bg);
-}
-
-.section-editor > .setup-field {
-  margin-bottom: 16px;
-}
-
-.anvil-role-field-error {
-  display: block;
-  margin-top: 4px;
-  color: #b3261e;
-  font-size: 13px;
-}
-
-.section-editor .setup-field textarea.anvil-text-area {
-  min-height: 110px;
-}
-
 @media (max-width: 760px) {
   .page-main {
     width: calc(100% - 16px);
@@ -796,8 +598,8 @@ input.anvil-role-matrix-quantity {
     padding: 12px;
   }
 
-  /* Each section is already its own bordered card; drop the card around them. */
-  .anvil-role-workspace-panel:has(.grid-section) {
+  /* The grid already has its own bordered box; drop the card around it. */
+  .anvil-role-workspace-panel:has(.matrix-scroll) {
     padding: 0;
     border: none;
     background: none;
@@ -807,26 +609,13 @@ input.anvil-role-matrix-quantity {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  /* Four even buttons fit one phone-width row. */
-  .section-toolbox > .anvil-button {
-    flex: 1 1 0;
-    min-width: 0;
-  }
-
-  .section-toolbox > .anvil-button > button {
-    width: 100%;
-    padding: 0 6px;
-  }
-
-  .guided-card,
-  .section-editor {
+  .guided-card {
     padding: 12px;
   }
 
-  /* Tighter grid so the five allowed columns fit on a phone; a section
-     with more scrolls sideways. */
+  /* Tighter grid so every column fits on a phone. */
   .inventory-matrix {
-    min-width: calc(92px + var(--matrix-columns, 0) * 52px);
+    min-width: 0;
   }
 
   .matrix-header {
