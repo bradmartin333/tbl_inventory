@@ -16,6 +16,12 @@
 
 /* Base */
 
+/* Keep the scrollbar's space even when a short tab doesn't scroll, so
+   switching tabs doesn't nudge the page sideways. */
+html {
+  scrollbar-gutter: stable;
+}
+
 body {
   min-height: calc(100vh - var(--anvil-banner-height, 0px));
   margin: 0;
