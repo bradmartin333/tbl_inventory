@@ -2,7 +2,7 @@ from ._anvil_designer import MainFormTemplate
 from anvil import *
 import anvil.users
 import anvil.server
-from anvil.js import window
+from anvil.js import get_dom_node, window
 import time
 from datetime import datetime
 
@@ -22,6 +22,12 @@ class MainForm(MainFormTemplate):
     self._error_notification = None
     self._saves_in_flight = 0
     self._snapshot = None
+    self._section_cards = []
+    self._active_card = None
+    # Anvil has no caret events, so watch the box itself for the line in use.
+    self._sections_node = get_dom_node(self.section_labels_area)
+    for event_name in ("keyup", "pointerup", "input", "focus"):
+      self._sections_node.addEventListener(event_name, self._on_sections_caret)
     self._wizard_cells = []
     self._wizard_index = 0
     self.tables_panel.add_event_handler("x-save-cell", self._save_grid_cell)
@@ -154,45 +160,91 @@ class MainForm(MainFormTemplate):
   def _open_table_editor(self):
     tables = self._snapshot["tables"]
     self.section_labels_area.text = "\n".join(table["label"] for table in tables)
-    self.section_editors_panel.items = [
+    self._section_cards = [
       {
         "table_key": table["table_key"],
         "label": table["label"],
+        "saved_label": table["label"],
         "row_labels_text": "\n".join(table["row_labels"]),
         "column_labels_text": "\n".join(table["column_labels"]),
       }
       for table in tables
     ]
+    # Start on the section the grid has open, so Customize edits what was in view.
+    open_index = next((index for index, table in enumerate(tables) if table["expanded"]), 0)
+    self._show_section(self._section_cards[open_index])
     self._set_active_tab("customize")
 
-  def _sync_section_editors(self):
+  def _show_section(self, card):
+    # The Sections box picks the section; the boxes below edit only that one.
+    self._active_card = card
+    self.section_label.text = (
+      card["label"] if card else "Tap a section above to edit its rows and columns."
+    )
+    self.row_labels_area.text = card["row_labels_text"] if card else ""
+    self.column_labels_area.text = card["column_labels_text"] if card else ""
+    self.row_labels_area.enabled = card is not None
+    self.column_labels_area.enabled = card is not None
+
+  def _on_sections_caret(self, event=None):
+    node = self._sections_node
+    text = node.value or ""
+    lines = text.split("\n")
+    caret_line = text[:node.selectionStart].count("\n")
+    if not lines[caret_line].strip():
+      # An emptied line may be mid-rename, so its section waits for a new name.
+      self._show_section(None)
+      return
+    self._sync_section_cards()
+    position = sum(1 for line in lines[:caret_line] if line.strip())
+    self._show_section(self._section_cards[position])
+
+  def _sync_section_cards(self):
     # The Sections box is the list itself: one section per line, in grid order.
     names = [
       line.strip()
       for line in (self.section_labels_area.text or "").splitlines()
       if line.strip()
     ]
-    previous = self.section_editors_panel.items
-    # Rebuilding the cards drops focus from the box the user just tapped, so
-    # only rebuild when the list really changed.
+    previous = self._section_cards
+    # Most caret events only move between lines.
     if names == [card["label"] for card in previous]:
       return
-    previous_names = [card["label"].casefold() for card in previous]
-    by_name = dict(zip(previous_names, previous))
-    new_names = {name.casefold() for name in names}
+    cards = [None] * len(names)
+    claimed = []
 
-    cards = []
+    def claim(index, card):
+      cards[index] = card
+      claimed.append(card)
+
+    def unclaimed(card):
+      return not any(card is taken for taken in claimed)
+
+    # Exact names first. The saved name catches a section whose line was
+    # briefly merged with one typed in front of it, e.g. "BarFreezer" + Enter.
+    for name_key in ("label", "saved_label"):
+      for index, name in enumerate(names):
+        if cards[index] is None:
+          match = next(
+            (
+              card for card in previous
+              if card.get(name_key) and card[name_key].lower() == name.lower() and unclaimed(card)
+            ),
+            None,
+          )
+          if match is not None:
+            claim(index, match)
+
     for index, name in enumerate(names):
-      card = by_name.get(name.casefold())
-      if card is None and index < len(previous) and previous_names[index] not in new_names:
-        # A new name where a vanished one used to be is a rename, so the
-        # section keeps its rows, columns and counts.
-        card = previous[index]
-      if card is None:
-        card = {"table_key": None, "row_labels_text": "", "column_labels_text": ""}
-      card["label"] = name
-      cards.append(card)
-    self.section_editors_panel.items = cards
+      if cards[index] is None:
+        if index < len(previous) and unclaimed(previous[index]):
+          # A new name where a vanished one used to be is a rename, so the
+          # section keeps its rows, columns and counts.
+          claim(index, previous[index])
+        else:
+          claim(index, {"table_key": None, "row_labels_text": "", "column_labels_text": ""})
+      cards[index]["label"] = name
+    self._section_cards = cards
 
   def _start_guided_entry(self):
     self._wizard_cells = [
@@ -321,17 +373,30 @@ class MainForm(MainFormTemplate):
 
   @handle("section_labels_area", "lost_focus")
   def section_labels_area_lost_focus(self, **event_args):
-    self._sync_section_editors()
+    # Leaving the box settles any emptied line as a removed section.
+    self._sync_section_cards()
+    if not any(card is self._active_card for card in self._section_cards):
+      self._show_section(None)
+
+  @handle("row_labels_area", "change")
+  def row_labels_area_change(self, **event_args):
+    if self._active_card is not None:
+      self._active_card["row_labels_text"] = self.row_labels_area.text
+
+  @handle("column_labels_area", "change")
+  def column_labels_area_change(self, **event_args):
+    if self._active_card is not None:
+      self._active_card["column_labels_text"] = self.column_labels_area.text
 
   @handle("save_setup_button", "click")
   def save_setup_button_click(self, **event_args):
     # Catch a Sections edit that never lost focus before Save was pressed.
-    self._sync_section_editors()
+    self._sync_section_cards()
     self.save_setup_button.enabled = False
     try:
       result = anvil.server.call(
         "save_inventory_configuration",
-        self.section_editors_panel.items,
+        self._section_cards,
       )
     finally:
       self.save_setup_button.enabled = True

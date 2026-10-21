@@ -56,9 +56,27 @@
                   <anvil-component type="TextArea" name="section_labels_area" prop:placeholder="Freezer
 Dry goods"></anvil-component>
               </label>
-              <p class="setup-hint">One per line, in the order the grid shows them. Each section has its own rows and columns below.</p>
+              <p class="setup-hint">One per line, in the order the grid shows them. Tap a section's line to edit its rows and columns below.</p>
           </div>
-          <anvil-component type="RepeatingPanel" name="section_editors_panel" prop:item_template="TBL_Inventory.MainForm.SectionEditor" prop:role="section-editors"></anvil-component>
+          <div class="section-editor">
+              <anvil-component type="Label" name="section_label" prop:role="section-editor-heading" prop:spacing_above="none" prop:spacing_below="none"></anvil-component>
+              <div class="setup-fields">
+                  <div class="setup-field">
+                      <label>Rows
+                          <anvil-component type="TextArea" name="row_labels_area" prop:placeholder="Item 1
+Item 2
+Item 3"></anvil-component>
+                      </label>
+                  </div>
+                  <div class="setup-field">
+                      <label>Columns (up to 5)
+                          <anvil-component type="TextArea" name="column_labels_area" prop:placeholder="Quantity
+Small containers
+Large containers"></anvil-component>
+                      </label>
+                  </div>
+              </div>
+          </div>
           <div class="setup-actions">
               <anvil-component type="Button" name="cancel_setup_button" prop:text="Cancel" prop:role="secondary-button"></anvil-component>
               <anvil-component type="Button" name="save_setup_button" prop:text="Save table setup"></anvil-component>

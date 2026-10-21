@@ -574,14 +574,8 @@ input.anvil-role-matrix-quantity {
   font-size: 13px;
 }
 
-.anvil-role-section-editors > div {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  margin-top: 16px;
-}
-
 .section-editor {
+  margin-top: 16px;
   padding: 16px;
   border: 1px solid var(--blank-border);
   border-radius: 8px;

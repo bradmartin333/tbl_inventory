@@ -18,6 +18,8 @@ roles:
 - components: [Button]
   name: secondary-button
 - components: [Button]
+  name: section-toggle
+- components: [Button]
   name: workspace-tab
 - components: [ColumnPanel]
   name: workspace-panel
@@ -26,6 +28,8 @@ roles:
 - components: [Label]
   name: current-datetime
 - components: [Label]
+  name: section-editor-heading
+- components: [Label]
   name: user-email
 - components: [Label]
   name: user-initials
@@ -33,6 +37,8 @@ roles:
   name: wizard-step
 - components: [Label]
   name: wizard-target
+- components: [RepeatingPanel]
+  name: grid-sections
 - components: [RepeatingPanel]
   name: matrix-column-headers
 - components: [RepeatingPanel]
