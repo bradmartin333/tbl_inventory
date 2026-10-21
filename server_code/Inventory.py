@@ -289,6 +289,12 @@ def _reconcile_labels(table, labels, key_name, table_key):
       item["active"] = False
 
 
+def _section_key(label):
+  # Section names compare with lower(), exactly as Customize checks them in the
+  # browser (which has no casefold()), so the two never disagree on a clash.
+  return (label or "").strip().lower()
+
+
 def _plan_section(section):
   # Returns (table or None, label, row_labels, column_labels), or an error message.
   if not isinstance(section, dict) or not isinstance(section.get("label"), str):
@@ -343,9 +349,9 @@ def save_inventory_configuration(sections, setup_version=None):
     plans.append(plan)
   seen_labels = set()
   for _, label, _, _ in plans:
-    if label.casefold() in seen_labels:
+    if _section_key(label) in seen_labels:
       return {"ok": False, "message": f"Two sections are called {label}. Give each a different name."}
-    seen_labels.add(label.casefold())
+    seen_labels.add(_section_key(label))
   existing_keys = [table["table_key"] for table, _, _, _ in plans if table is not None]
   if len(set(existing_keys)) != len(existing_keys):
     return {"ok": False, "message": STALE_GRID_MESSAGE}
@@ -354,12 +360,12 @@ def save_inventory_configuration(sections, setup_version=None):
   # deleted in this same edit) takes that one back, so its rows, columns and
   # counts return instead of starting empty. Active ones sort last to win.
   spare = {
-    (table["label"] or "").strip().casefold(): table
+    _section_key(table["label"]): table
     for table in sorted(app_tables.inventory_tables.search(), key=lambda table: bool(table["active"]))
     if table["table_key"] not in existing_keys
   }
   plans = [
-    (table or spare.get(label.casefold()), label, row_labels, column_labels)
+    (table or spare.get(_section_key(label)), label, row_labels, column_labels)
     for table, label, row_labels, column_labels in plans
   ]
 

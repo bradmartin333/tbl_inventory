@@ -280,6 +280,7 @@ class MainForm(MainFormTemplate):
     self.cancel_setup_button.visible = edited
 
   def _name_taken(self, name, ignore=None):
+    # Matches the server's _section_key, so a clash shows here before saving.
     key = name.strip().lower()
     return any(
       card is not ignore and card["label"].strip().lower() == key
