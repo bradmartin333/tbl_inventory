@@ -21,9 +21,10 @@ class MainForm(MainFormTemplate):
     self._show_current_datetime()
     self._error_notification = None
     self._saves_in_flight = 0
+    self._snapshot = None
     self._wizard_cells = []
     self._wizard_index = 0
-    self.rows_panel.add_event_handler("x-save-cell", self._save_grid_cell)
+    self.tables_panel.add_event_handler("x-save-cell", self._save_grid_cell)
     self._set_active_tab("grid")
     self._load_latest_counts()
 
@@ -111,19 +112,34 @@ class MainForm(MainFormTemplate):
       panel.visible = tab_name == active_tab
       buttons[tab_name].enabled = tab_name != active_tab
 
+    if active_tab == "grid":
+      # Coming back to the grid starts with only the first section open.
+      for index, section in enumerate(self.tables_panel.get_components()):
+        section.set_expanded(index == 0)
+
   def _load_latest_counts(self):
     snapshot = anvil.server.call("get_inventory_grid")
+    # A reload keeps open whichever sections the reader opened.
+    open_keys = None if self._snapshot is None else {
+      table["table_key"] for table in self._snapshot["tables"] if table["expanded"]
+    }
     self._snapshot = snapshot
     # The server vets the account's initials; without them every save would be refused.
     self._can_enter = snapshot["initials"] is not None
     self.user_initials_label.text = snapshot["initials"] or "—"
-    for row in snapshot["rows"]:
-      for cell in row["cells"]:
-        cell["editable"] = self._can_enter
+    tables = snapshot["tables"]
+    for index, table in enumerate(tables):
+      table["show_toggle"] = len(tables) > 1
+      table["expanded"] = (
+        not table["show_toggle"]
+        or (index == 0 if open_keys is None else table["table_key"] in open_keys)
+      )
+      for row in table["rows"]:
+        for cell in row["cells"]:
+          cell["editable"] = self._can_enter
     # Rebuilding the rows briefly collapses the page, so keep the reader's place.
     scroll_y = window.scrollY
-    self.column_headers_panel.items = snapshot["columns"]
-    self.rows_panel.items = snapshot["rows"]
+    self.tables_panel.items = tables
     window.scrollTo(window.scrollX, scroll_y)
     if not self._can_enter:
       self._show_error(NO_INITIALS_MESSAGE)
@@ -136,14 +152,53 @@ class MainForm(MainFormTemplate):
     self._error_notification.show()
 
   def _open_table_editor(self):
-    self.row_labels_area.text = "\n".join(self._snapshot["row_labels"])
-    self.column_labels_area.text = "\n".join(self._snapshot["column_labels"])
+    tables = self._snapshot["tables"]
+    self.section_labels_area.text = "\n".join(table["label"] for table in tables)
+    self.section_editors_panel.items = [
+      {
+        "table_key": table["table_key"],
+        "label": table["label"],
+        "row_labels_text": "\n".join(table["row_labels"]),
+        "column_labels_text": "\n".join(table["column_labels"]),
+      }
+      for table in tables
+    ]
     self._set_active_tab("customize")
+
+  def _sync_section_editors(self):
+    # The Sections box is the list itself: one section per line, in grid order.
+    names = [
+      line.strip()
+      for line in (self.section_labels_area.text or "").splitlines()
+      if line.strip()
+    ]
+    previous = self.section_editors_panel.items
+    # Rebuilding the cards drops focus from the box the user just tapped, so
+    # only rebuild when the list really changed.
+    if names == [card["label"] for card in previous]:
+      return
+    previous_names = [card["label"].casefold() for card in previous]
+    by_name = dict(zip(previous_names, previous))
+    new_names = {name.casefold() for name in names}
+
+    cards = []
+    for index, name in enumerate(names):
+      card = by_name.get(name.casefold())
+      if card is None and index < len(previous) and previous_names[index] not in new_names:
+        # A new name where a vanished one used to be is a rename, so the
+        # section keeps its rows, columns and counts.
+        card = previous[index]
+      if card is None:
+        card = {"table_key": None, "row_labels_text": "", "column_labels_text": ""}
+      card["label"] = name
+      cards.append(card)
+    self.section_editors_panel.items = cards
 
   def _start_guided_entry(self):
     self._wizard_cells = [
-      (row, cell)
-      for row in self.rows_panel.items
+      (table, row, cell)
+      for table in self._snapshot["tables"]
+      for row in table["rows"]
       for cell in row["cells"]
     ]
     self._wizard_index = 0
@@ -163,16 +218,19 @@ class MainForm(MainFormTemplate):
       self.wizard_target_label.text = "All cells have been reviewed."
       return
 
-    row, cell = self._wizard_cells[self._wizard_index]
+    table, row, cell = self._wizard_cells[self._wizard_index]
     self.wizard_step_label.text = f"Cell {self._wizard_index + 1} of {total_steps}"
-    self.wizard_target_label.text = f"{row['label']}  ·  {cell['column_label']}"
+    target = f"{row['label']}  ·  {cell['column_label']}"
+    if len(self._snapshot["tables"]) > 1:
+      target = f"{table['label']}  ·  {target}"
+    self.wizard_target_label.text = target
     self.wizard_quantity_box.text = cell["entry_quantity"]
     self.wizard_next_button.text = (
       "Finish" if self._wizard_index == total_steps - 1 else "Next"
     )
 
   def _save_wizard_step(self, quantity, advance=True):
-    row, cell = self._wizard_cells[self._wizard_index]
+    _, row, cell = self._wizard_cells[self._wizard_index]
     wizard_buttons = (self.wizard_next_button, self.wizard_zero_button, self.wizard_exit_button)
     for button in wizard_buttons:
       button.enabled = False
@@ -261,14 +319,19 @@ class MainForm(MainFormTemplate):
 
     cell.show_saved(result["entry_quantity"], result["latest_display"])
 
+  @handle("section_labels_area", "lost_focus")
+  def section_labels_area_lost_focus(self, **event_args):
+    self._sync_section_editors()
+
   @handle("save_setup_button", "click")
   def save_setup_button_click(self, **event_args):
+    # Catch a Sections edit that never lost focus before Save was pressed.
+    self._sync_section_editors()
     self.save_setup_button.enabled = False
     try:
       result = anvil.server.call(
         "save_inventory_configuration",
-        self.row_labels_area.text,
-        self.column_labels_area.text,
+        self.section_editors_panel.items,
       )
     finally:
       self.save_setup_button.enabled = True
@@ -278,8 +341,9 @@ class MainForm(MainFormTemplate):
       return
 
     self._wizard_cells = []
-    self._set_active_tab("grid")
+    # Load first so the grid tab opens the new first section, not the old one.
     self._load_latest_counts()
+    self._set_active_tab("grid")
 
   @handle("cancel_setup_button", "click")
   def cancel_setup_button_click(self, **event_args):
@@ -323,7 +387,7 @@ class MainForm(MainFormTemplate):
   def wizard_exit_button_click(self, **event_args):
     # Only save an edit: re-saving an untouched value would log a duplicate
     # entry under this user's initials.
-    _, cell = self._wizard_cells[self._wizard_index]
+    _, _, cell = self._wizard_cells[self._wizard_index]
     quantity = self.wizard_quantity_box.text
     if (quantity or "") != (cell["entry_quantity"] or ""):
       if not self._save_wizard_step(quantity, advance=False):

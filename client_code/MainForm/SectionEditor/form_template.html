@@ -1,0 +1,19 @@
+<div class="section-editor">
+    <anvil-component type="Label" name="section_label" prop:role="section-editor-heading" prop:spacing_above="none" prop:spacing_below="none" bind:text="self.item['label']"></anvil-component>
+    <div class="setup-fields">
+        <div class="setup-field">
+            <label>Rows
+                <anvil-component type="TextArea" name="row_labels_area" prop:placeholder="Item 1
+Item 2
+Item 3" writeback:text="self.item['row_labels_text']"></anvil-component>
+            </label>
+        </div>
+        <div class="setup-field">
+            <label>Columns (up to 5)
+                <anvil-component type="TextArea" name="column_labels_area" prop:placeholder="Quantity
+Small containers
+Large containers" writeback:text="self.item['column_labels_text']"></anvil-component>
+            </label>
+        </div>
+    </div>
+</div>

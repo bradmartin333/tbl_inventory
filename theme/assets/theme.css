@@ -432,7 +432,7 @@ input.anvil-role-wizard-quantity {
 }
 
 .inventory-matrix {
-  min-width: 560px;
+  min-width: max(560px, calc(180px + var(--matrix-columns, 0) * 96px));
 }
 
 .matrix-header,
@@ -530,6 +530,75 @@ input.anvil-role-matrix-quantity {
   text-align: center;
 }
 
+/* Grid sections */
+
+.anvil-role-grid-sections > div {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.anvil-role-section-toggle {
+  width: 100%;
+}
+
+.anvil-role-section-toggle > button,
+.anvil-role-section-toggle > button:hover,
+.anvil-role-section-toggle > button:focus {
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 44px;
+  margin-bottom: 6px;
+  border-color: var(--blank-border);
+  background: var(--blank-surface-muted);
+  color: var(--blank-primary-dark);
+  font-size: 16px;
+  text-align: left;
+}
+
+.anvil-role-section-toggle > button:hover,
+.anvil-role-section-toggle > button:focus {
+  border-color: var(--blank-primary);
+}
+
+/* Section setup */
+
+.setup-sections-field textarea.anvil-text-area {
+  width: 100%;
+  min-height: 96px;
+}
+
+.setup-hint {
+  margin: 6px 0 0;
+  color: var(--blank-muted);
+  font-size: 13px;
+}
+
+.anvil-role-section-editors > div {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.section-editor {
+  padding: 16px;
+  border: 1px solid var(--blank-border);
+  border-radius: 8px;
+  background: var(--blank-bg);
+}
+
+.anvil-role-section-editor-heading {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.section-editor .setup-field textarea.anvil-text-area {
+  min-height: 110px;
+}
+
 @media (max-width: 760px) {
   .page-main {
     width: calc(100% - 16px);
@@ -609,13 +678,15 @@ input.anvil-role-matrix-quantity {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .guided-card {
+  .guided-card,
+  .section-editor {
     padding: 12px;
   }
 
-  /* Tighter grid so every column fits on a phone. */
+  /* Tighter grid so the five allowed columns fit on a phone; a section
+     with more scrolls sideways. */
   .inventory-matrix {
-    min-width: 0;
+    min-width: calc(92px + var(--matrix-columns, 0) * 52px);
   }
 
   .matrix-header {

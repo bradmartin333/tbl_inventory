@@ -18,17 +18,7 @@
         </nav>
     
         <anvil-component type="ColumnPanel" name="grid_entry_panel" prop:role="workspace-panel">
-          <div class="matrix-scroll">
-              <div class="inventory-matrix">
-                  <div class="matrix-header">
-                      <div class="matrix-row-heading">
-                          <anvil-component type="Label" name="matrix_row_heading" prop:text="Item" prop:spacing_above="none" prop:spacing_below="none"></anvil-component>
-                      </div>
-                      <anvil-component type="RepeatingPanel" name="column_headers_panel" prop:item_template="TBL_Inventory.MainForm.ColumnHeading" prop:role="matrix-column-headers"></anvil-component>
-                  </div>
-                  <anvil-component type="RepeatingPanel" name="rows_panel" prop:item_template="TBL_Inventory.MainForm.GridRow"></anvil-component>
-              </div>
-          </div>
+          <anvil-component type="RepeatingPanel" name="tables_panel" prop:item_template="TBL_Inventory.MainForm.GridSection" prop:role="grid-sections"></anvil-component>
         </anvil-component>
     
         <anvil-component type="ColumnPanel" name="guided_panel" prop:role="workspace-panel">
@@ -61,22 +51,14 @@
         </anvil-component>
     
         <anvil-component type="ColumnPanel" name="table_editor_panel" prop:role="workspace-panel">
-          <div class="setup-fields">
-              <div class="setup-field">
-                  <label>Rows
-                      <anvil-component type="TextArea" name="row_labels_area" prop:placeholder="Item 1
-Item 2
-Item 3"></anvil-component>
-                  </label>
-              </div>
-              <div class="setup-field">
-                  <label>Columns
-                      <anvil-component type="TextArea" name="column_labels_area" prop:placeholder="Quantity
-Small containers
-Large containers"></anvil-component>
-                  </label>
-              </div>
+          <div class="setup-field setup-sections-field">
+              <label>Sections
+                  <anvil-component type="TextArea" name="section_labels_area" prop:placeholder="Freezer
+Dry goods"></anvil-component>
+              </label>
+              <p class="setup-hint">One per line, in the order the grid shows them. Each section has its own rows and columns below.</p>
           </div>
+          <anvil-component type="RepeatingPanel" name="section_editors_panel" prop:item_template="TBL_Inventory.MainForm.SectionEditor" prop:role="section-editors"></anvil-component>
           <div class="setup-actions">
               <anvil-component type="Button" name="cancel_setup_button" prop:text="Cancel" prop:role="secondary-button"></anvil-component>
               <anvil-component type="Button" name="save_setup_button" prop:text="Save table setup"></anvil-component>

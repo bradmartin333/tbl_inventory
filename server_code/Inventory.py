@@ -7,10 +7,14 @@ import anvil.server
 from anvil.tables import app_tables
 
 
+DEFAULT_TABLE = "Inventory"
 DEFAULT_ROWS = ["Item 1", "Item 2", "Item 3"]
 DEFAULT_COLUMNS = ["Quantity", "Small containers", "Large containers"]
+MAX_TABLES = 10
+# Per section. Five columns is as many as fit beside the row labels on a phone.
 MAX_ROWS = 50
-MAX_COLUMNS = 12
+MAX_COLUMNS = 5
+STALE_GRID_MESSAGE = "Refresh the table and try again."
 NO_INITIALS_MESSAGE = (
   "Your account needs initials (1–5 letters) before you can enter counts. "
   "Ask an admin to add them, then reload this page."
@@ -18,18 +22,38 @@ NO_INITIALS_MESSAGE = (
 
 
 def _ensure_default_grid():
-  if not list(app_tables.inventory_rows.search()):
+  # Saving the setup always leaves at least one section, so this only runs on
+  # a new app or one from before sections existed.
+  if list(app_tables.inventory_tables.search(active=True)):
+    return
+  table_key = uuid.uuid4().hex
+  app_tables.inventory_tables.add_row(
+    table_key=table_key,
+    label=DEFAULT_TABLE,
+    sort_order=1,
+    active=True,
+  )
+
+  # Rows and columns from before sections existed join the first section.
+  for item in app_tables.inventory_rows.search(table_key=None):
+    item["table_key"] = table_key
+  for item in app_tables.inventory_columns.search(table_key=None):
+    item["table_key"] = table_key
+
+  if not list(app_tables.inventory_rows.search(table_key=table_key)):
     for order, label in enumerate(DEFAULT_ROWS, start=1):
       app_tables.inventory_rows.add_row(
         row_key=uuid.uuid4().hex,
+        table_key=table_key,
         label=label,
         sort_order=order,
         active=True,
       )
-  if not list(app_tables.inventory_columns.search()):
+  if not list(app_tables.inventory_columns.search(table_key=table_key)):
     for order, label in enumerate(DEFAULT_COLUMNS, start=1):
       app_tables.inventory_columns.add_row(
         column_key=uuid.uuid4().hex,
+        table_key=table_key,
         label=label,
         sort_order=order,
         active=True,
@@ -112,16 +136,14 @@ def _active_ordered(table):
   return items
 
 
-@anvil.server.callable(require_user=True)
-def get_inventory_grid():
-  _ensure_default_grid()
-  rows = _active_ordered(app_tables.inventory_rows)
-  columns = _active_ordered(app_tables.inventory_columns)
-  saved_cells = {
-    (cell["row_key"], cell["column_key"]): cell
-    for cell in app_tables.inventory_cells.search()
-  }
+def _group_by_table(items):
+  grouped = {}
+  for item in items:
+    grouped.setdefault(item["table_key"], []).append(item)
+  return grouped
 
+
+def _build_table(table, rows, columns, saved_cells):
   grid_rows = []
   for row in rows:
     row_cells = []
@@ -144,7 +166,8 @@ def get_inventory_grid():
     })
 
   return {
-    "initials": _user_initials(anvil.users.get_user()),
+    "table_key": table["table_key"],
+    "label": table["label"],
     "rows": grid_rows,
     "columns": [
       {"column_key": column["column_key"], "label": column["label"]}
@@ -152,6 +175,31 @@ def get_inventory_grid():
     ],
     "row_labels": [row["label"] for row in rows],
     "column_labels": [column["label"] for column in columns],
+  }
+
+
+@anvil.server.callable(require_user=True)
+def get_inventory_grid():
+  _ensure_default_grid()
+  # One search per table rather than one per section keeps the load quick.
+  rows_by_table = _group_by_table(_active_ordered(app_tables.inventory_rows))
+  columns_by_table = _group_by_table(_active_ordered(app_tables.inventory_columns))
+  saved_cells = {
+    (cell["row_key"], cell["column_key"]): cell
+    for cell in app_tables.inventory_cells.search()
+  }
+
+  return {
+    "initials": _user_initials(anvil.users.get_user()),
+    "tables": [
+      _build_table(
+        table,
+        rows_by_table.get(table["table_key"], []),
+        columns_by_table.get(table["table_key"], []),
+        saved_cells,
+      )
+      for table in _active_ordered(app_tables.inventory_tables)
+    ],
   }
 
 
@@ -164,8 +212,9 @@ def _split_labels(raw_text):
   return labels
 
 
-def _reconcile_labels(table, labels, key_name):
-  existing = list(table.search())
+def _reconcile_labels(table, labels, key_name, table_key):
+  # Labels match within one section, so the same item name can sit in two.
+  existing = list(table.search(table_key=table_key))
   by_label = {
     item["label"].strip().casefold(): item
     for item in existing
@@ -180,6 +229,7 @@ def _reconcile_labels(table, labels, key_name):
       item = table.add_row(
         **{
           key_name: uuid.uuid4().hex,
+          "table_key": table_key,
           "label": label,
           "sort_order": index + 1,
           "active": True,
@@ -197,20 +247,69 @@ def _reconcile_labels(table, labels, key_name):
       item["active"] = False
 
 
-@anvil.server.callable(require_user=True)
-def save_inventory_configuration(row_labels_text, column_labels_text):
-  row_labels = _split_labels(row_labels_text)
-  column_labels = _split_labels(column_labels_text)
+def _plan_section(section):
+  # Returns (table or None, label, row_labels, column_labels), or an error message.
+  if not isinstance(section, dict) or not isinstance(section.get("label"), str):
+    return STALE_GRID_MESSAGE
+  label = section["label"].strip()
+  if not label:
+    return "Enter each section name on its own line."
+  if len(label) > 60:
+    return "Keep each section name under 60 characters."
 
+  table = None
+  if section.get("table_key") is not None:
+    if not isinstance(section["table_key"], str):
+      return STALE_GRID_MESSAGE
+    table = app_tables.inventory_tables.get(table_key=section["table_key"], active=True)
+    if table is None:
+      return STALE_GRID_MESSAGE
+
+  row_labels = _split_labels(section.get("row_labels_text"))
+  column_labels = _split_labels(section.get("column_labels_text"))
   if row_labels is None or not 1 <= len(row_labels) <= MAX_ROWS:
-    return {"ok": False, "message": f"Enter 1–{MAX_ROWS} unique row labels, one per line."}
+    return f"{label}: enter 1–{MAX_ROWS} unique row labels, one per line."
   if column_labels is None or not 1 <= len(column_labels) <= MAX_COLUMNS:
-    return {"ok": False, "message": f"Enter 1–{MAX_COLUMNS} unique quantity columns, one per line."}
-  if any(len(label) > 60 for label in row_labels + column_labels):
-    return {"ok": False, "message": "Keep each row and column label under 60 characters."}
+    return f"{label}: enter 1–{MAX_COLUMNS} unique quantity columns, one per line."
+  if any(len(item_label) > 60 for item_label in row_labels + column_labels):
+    return f"{label}: keep each row and column label under 60 characters."
+  return table, label, row_labels, column_labels
 
-  _reconcile_labels(app_tables.inventory_rows, row_labels, "row_key")
-  _reconcile_labels(app_tables.inventory_columns, column_labels, "column_key")
+
+@anvil.server.callable(require_user=True)
+def save_inventory_configuration(sections):
+  if not isinstance(sections, list) or not 1 <= len(sections) <= MAX_TABLES:
+    return {"ok": False, "message": f"Enter 1–{MAX_TABLES} unique sections, one per line."}
+
+  # Check every section before writing any, so a bad one leaves the grid as it was.
+  plans = []
+  for section in sections:
+    plan = _plan_section(section)
+    if isinstance(plan, str):
+      return {"ok": False, "message": plan}
+    plans.append(plan)
+  labels = [label.casefold() for _, label, _, _ in plans]
+  if len(set(labels)) != len(labels):
+    return {"ok": False, "message": f"Enter 1–{MAX_TABLES} unique sections, one per line."}
+  existing_keys = [table["table_key"] for table, _, _, _ in plans if table is not None]
+  if len(set(existing_keys)) != len(existing_keys):
+    return {"ok": False, "message": STALE_GRID_MESSAGE}
+
+  used_keys = set()
+  for order, (table, label, row_labels, column_labels) in enumerate(plans, start=1):
+    if table is None:
+      table = app_tables.inventory_tables.add_row(table_key=uuid.uuid4().hex)
+    table.update(label=label, sort_order=order, active=True)
+    _reconcile_labels(app_tables.inventory_rows, row_labels, "row_key", table["table_key"])
+    _reconcile_labels(app_tables.inventory_columns, column_labels, "column_key", table["table_key"])
+    used_keys.add(table["table_key"])
+
+  # A removed section keeps its rows, columns and history, just hidden.
+  for table in app_tables.inventory_tables.search(active=True):
+    if table["table_key"] not in used_keys:
+      table["active"] = False
+      _reconcile_labels(app_tables.inventory_rows, [], "row_key", table["table_key"])
+      _reconcile_labels(app_tables.inventory_columns, [], "column_key", table["table_key"])
   return {"ok": True}
 
 
@@ -221,11 +320,14 @@ def save_grid_cell(row_key, column_key, raw_quantity):
     return {"ok": False, "message": NO_INITIALS_MESSAGE}
 
   if not isinstance(row_key, str) or not isinstance(column_key, str):
-    return {"ok": False, "message": "Refresh the table and try again."}
+    return {"ok": False, "message": STALE_GRID_MESSAGE}
   row = app_tables.inventory_rows.get(row_key=row_key, active=True)
   column = app_tables.inventory_columns.get(column_key=column_key, active=True)
-  if row is None or column is None:
-    return {"ok": False, "message": "Refresh the table and try again."}
+  if row is None or column is None or row["table_key"] != column["table_key"]:
+    return {"ok": False, "message": STALE_GRID_MESSAGE}
+  table = app_tables.inventory_tables.get(table_key=row["table_key"], active=True)
+  if table is None:
+    return {"ok": False, "message": STALE_GRID_MESSAGE}
 
   quantity = _parse_quantity(raw_quantity)
   if quantity is None:
@@ -242,6 +344,8 @@ def save_grid_cell(row_key, column_key, raw_quantity):
   latest.update(quantity=quantity, entered_by=initials, entered_at=entered_at)
   app_tables.inventory_history.add_row(
     entry_id=uuid.uuid4().hex,
+    table_key=table["table_key"],
+    table_label=table["label"],
     row_key=row_key,
     row_label=row["label"],
     column_key=column_key,
