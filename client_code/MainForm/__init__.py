@@ -443,7 +443,8 @@ class MainForm(MainFormTemplate):
   def delete_section_button_click(self, **event_args):
     card = self._active_card
     if card["table_key"] is not None and not confirm(
-      f"Remove {card['label']}? Its counts are kept but hidden. Nothing changes until you save.",
+      f"Remove {card['label']}? Its counts are kept but hidden; adding a section with the "
+      "same name brings them back. Nothing changes until you save.",
       title="Remove section",
     ):
       return

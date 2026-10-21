@@ -348,6 +348,19 @@ def save_inventory_configuration(sections, setup_version=None):
   if len(set(existing_keys)) != len(existing_keys):
     return {"ok": False, "message": STALE_GRID_MESSAGE}
 
+  # A new section named like one that isn't being kept (hidden earlier, or
+  # deleted in this same edit) takes that one back, so its rows, columns and
+  # counts return instead of starting empty. Active ones sort last to win.
+  spare = {
+    (table["label"] or "").strip().casefold(): table
+    for table in sorted(app_tables.inventory_tables.search(), key=lambda table: bool(table["active"]))
+    if table["table_key"] not in existing_keys
+  }
+  plans = [
+    (table or spare.get(label.casefold()), label, row_labels, column_labels)
+    for table, label, row_labels, column_labels in plans
+  ]
+
   used_keys = set()
   for order, (table, label, row_labels, column_labels) in enumerate(plans, start=1):
     if table is None:
