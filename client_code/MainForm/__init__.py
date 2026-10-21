@@ -10,9 +10,6 @@ NO_INITIALS_MESSAGE = (
   "Your account has no initials yet, so counts are view-only. "
   "Ask an admin to add 1–5 letters to your account, then reload this page."
 )
-# Mirror the server's limits so the toolbox can stop a save that would fail.
-MAX_SECTIONS = 10
-MAX_SECTION_NAME = 60
 
 
 def _clean_lines(text):
@@ -142,6 +139,11 @@ class MainForm(MainFormTemplate):
     # The server vets the account's initials; without them every save would be refused.
     self._can_enter = snapshot["initials"] is not None
     self.user_initials_label.text = snapshot["initials"] or "—"
+    # The server owns the limits; the client only reads them.
+    self._limits = snapshot["limits"]
+    self.dom_nodes["columns_label_text"].textContent = (
+      f"Columns (up to {self._limits['columns']})"
+    )
     tables = snapshot["tables"]
     for index, table in enumerate(tables):
       table["show_toggle"] = len(tables) > 1
@@ -213,7 +215,7 @@ class MainForm(MainFormTemplate):
       }
       for index, card in enumerate(cards)
     ]
-    full = len(cards) >= MAX_SECTIONS
+    full = len(cards) >= self._limits["sections"]
     self.move_up_button.enabled = active_index > 0
     self.move_down_button.enabled = active_index < len(cards) - 1
     self.clone_section_button.enabled = not full
@@ -251,8 +253,8 @@ class MainForm(MainFormTemplate):
     name = (self.new_section_box.text or "").strip()
     if not name:
       return
-    if len(name) > MAX_SECTION_NAME:
-      self._show_error(f"Keep each section name under {MAX_SECTION_NAME} characters.")
+    if len(name) > self._limits["label_length"]:
+      self._show_error(f"Keep each section name under {self._limits['label_length']} characters.")
       return
     if self._name_taken(name):
       self._show_error(f"There's already a section called {name}.")
@@ -274,7 +276,7 @@ class MainForm(MainFormTemplate):
     copy_number = 1
     while True:
       suffix = " copy" if copy_number == 1 else f" copy {copy_number}"
-      name = label[:MAX_SECTION_NAME - len(suffix)] + suffix
+      name = label[:self._limits["label_length"] - len(suffix)] + suffix
       if not self._name_taken(name):
         return name
       copy_number += 1

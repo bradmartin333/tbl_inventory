@@ -10,10 +10,14 @@ from anvil.tables import app_tables, in_transaction
 DEFAULT_TABLE = "Inventory"
 DEFAULT_ROWS = ["Item 1", "Item 2", "Item 3"]
 DEFAULT_COLUMNS = ["Quantity", "Small containers", "Large containers"]
-MAX_TABLES = 10
+# The one place these limits live: get_inventory_grid sends them to the
+# browser, so its checks, messages and labels follow any change here.
+MAX_SECTIONS = 10
 # Per section. Five columns is as many as fit beside the row labels on a phone.
 MAX_ROWS = 50
 MAX_COLUMNS = 5
+# For section, row and column names alike.
+MAX_LABEL_LENGTH = 60
 STALE_GRID_MESSAGE = "Refresh the table and try again."
 NO_INITIALS_MESSAGE = (
   "Your account needs initials (1–5 letters) before you can enter counts. "
@@ -200,6 +204,12 @@ def get_inventory_grid():
 
   return {
     "initials": _user_initials(anvil.users.get_user()),
+    "limits": {
+      "sections": MAX_SECTIONS,
+      "rows": MAX_ROWS,
+      "columns": MAX_COLUMNS,
+      "label_length": MAX_LABEL_LENGTH,
+    },
     "tables": [
       _build_table(
         table,
@@ -263,8 +273,8 @@ def _plan_section(section):
   label = section["label"].strip()
   if not label:
     return "Enter each section name on its own line."
-  if len(label) > 60:
-    return "Keep each section name under 60 characters."
+  if len(label) > MAX_LABEL_LENGTH:
+    return f"Keep each section name under {MAX_LABEL_LENGTH} characters."
 
   table = None
   if section.get("table_key") is not None:
@@ -280,16 +290,16 @@ def _plan_section(section):
     return f"{label}: enter 1–{MAX_ROWS} unique row labels, one per line."
   if column_labels is None or not 1 <= len(column_labels) <= MAX_COLUMNS:
     return f"{label}: enter 1–{MAX_COLUMNS} unique quantity columns, one per line."
-  if any(len(item_label) > 60 for item_label in row_labels + column_labels):
-    return f"{label}: keep each row and column label under 60 characters."
+  if any(len(item_label) > MAX_LABEL_LENGTH for item_label in row_labels + column_labels):
+    return f"{label}: keep each row and column label under {MAX_LABEL_LENGTH} characters."
   return table, label, row_labels, column_labels
 
 
 @anvil.server.callable(require_user=True)
 @in_transaction
 def save_inventory_configuration(sections):
-  if not isinstance(sections, list) or not 1 <= len(sections) <= MAX_TABLES:
-    return {"ok": False, "message": f"Enter 1–{MAX_TABLES} unique sections, one per line."}
+  if not isinstance(sections, list) or not 1 <= len(sections) <= MAX_SECTIONS:
+    return {"ok": False, "message": f"Enter 1–{MAX_SECTIONS} unique sections, one per line."}
 
   # Check every section before writing any. The transaction covers the rest: a
   # failure partway through, or another admin saving at once, never leaves a
@@ -302,7 +312,7 @@ def save_inventory_configuration(sections):
     plans.append(plan)
   labels = [label.casefold() for _, label, _, _ in plans]
   if len(set(labels)) != len(labels):
-    return {"ok": False, "message": f"Enter 1–{MAX_TABLES} unique sections, one per line."}
+    return {"ok": False, "message": f"Enter 1–{MAX_SECTIONS} unique sections, one per line."}
   existing_keys = [table["table_key"] for table, _, _, _ in plans if table is not None]
   if len(set(existing_keys)) != len(existing_keys):
     return {"ok": False, "message": STALE_GRID_MESSAGE}
