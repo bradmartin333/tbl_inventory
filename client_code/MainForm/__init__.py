@@ -10,6 +10,9 @@ NO_INITIALS_MESSAGE = (
   "Your account has no initials yet, so counts are view-only. "
   "Ask an admin to add 1–5 letters to your account, then reload this page."
 )
+# A save that errors (busy server, dropped connection) is shown like a refused
+# one, so the box reverts instead of keeping a value that never saved.
+SAVE_FAILED = {"ok": False, "message": "That didn't save. Check your connection and try again."}
 
 
 def _clean_lines(text):
@@ -379,6 +382,8 @@ class MainForm(MainFormTemplate):
         cell["column_key"],
         quantity,
       )
+    except Exception:
+      result = SAVE_FAILED
     finally:
       for button in wizard_buttons:
         button.enabled = True
@@ -450,6 +455,8 @@ class MainForm(MainFormTemplate):
         cell.item["column_key"],
         quantity,
       )
+    except Exception:
+      result = SAVE_FAILED
     finally:
       self._saves_in_flight -= 1
     if not result["ok"]:
@@ -539,6 +546,8 @@ class MainForm(MainFormTemplate):
         self._section_cards,
         self._editing_version,
       )
+    except Exception:
+      result = SAVE_FAILED
     finally:
       self.cancel_setup_button.enabled = True
       self._show_edited_state()
