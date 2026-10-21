@@ -424,11 +424,9 @@ input.anvil-role-wizard-quantity {
 
 /* Inventory matrix */
 
+/* The section card supplies the border, so the grid sits flush inside it. */
 .matrix-scroll {
   overflow-x: auto;
-  border: 1px solid var(--blank-border);
-  border-radius: 8px;
-  background: var(--blank-surface);
 }
 
 .inventory-matrix {
@@ -538,6 +536,15 @@ input.anvil-role-matrix-quantity {
   gap: 14px;
 }
 
+/* Each section is one card: the toggle is its title bar and the grid hangs
+   directly beneath, rather than a button floating above a separate box. */
+.grid-section {
+  overflow: hidden;
+  border: 1px solid var(--blank-border);
+  border-radius: 8px;
+  background: var(--blank-surface);
+}
+
 .anvil-role-section-toggle {
   width: 100%;
 }
@@ -548,17 +555,25 @@ input.anvil-role-matrix-quantity {
   justify-content: flex-start;
   width: 100%;
   min-height: 44px;
-  margin-bottom: 6px;
-  border-color: var(--blank-border);
+  margin: 0;
+  border: none;
+  border-radius: 0;
   background: var(--blank-surface-muted);
   color: var(--blank-primary-dark);
   font-size: 16px;
   text-align: left;
 }
 
-.anvil-role-section-toggle > button:hover,
-.anvil-role-section-toggle > button:focus {
-  border-color: var(--blank-primary);
+.grid-section.is-expanded .anvil-role-section-toggle > button {
+  border-bottom: 1px solid var(--blank-border);
+}
+
+.anvil-role-section-toggle > button:hover {
+  color: var(--blank-primary);
+}
+
+.anvil-role-section-toggle > button:focus-visible {
+  box-shadow: inset 0 0 0 3px var(--blank-focus-ring);
 }
 
 /* Section setup */
@@ -661,8 +676,8 @@ input.anvil-role-matrix-quantity {
     padding: 12px;
   }
 
-  /* The grid already has its own bordered box; drop the card around it. */
-  .anvil-role-workspace-panel:has(.matrix-scroll) {
+  /* Each section is already its own bordered card; drop the card around them. */
+  .anvil-role-workspace-panel:has(.grid-section) {
     padding: 0;
     border: none;
     background: none;

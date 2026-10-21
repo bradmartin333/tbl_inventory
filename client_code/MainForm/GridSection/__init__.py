@@ -27,6 +27,8 @@ class GridSection(GridSectionTemplate):
       f"{count} item{'' if count == 1 else 's'}"
     )
     self.dom_nodes["matrix_scroll"].style.display = "" if expanded else "none"
+    # Lets the stylesheet rule off the title bar only when the grid is under it.
+    self.dom_nodes["section"].classList.toggle("is-expanded", expanded)
     # A closed section builds no cells, which keeps a cheap tablet quick.
     self.rows_panel.items = self.item["rows"] if expanded else []
 
