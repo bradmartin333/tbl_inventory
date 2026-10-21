@@ -37,6 +37,9 @@ class MainForm(MainFormTemplate):
     self._wizard_cells = []
     self._wizard_index = 0
     self.tables_panel.add_event_handler("x-save-cell", self._save_grid_cell)
+    # Closing or reloading the page would drop unsaved Customize edits too.
+    window.addEventListener("beforeunload", self._on_before_unload)
+    self._active_tab = None
     self._set_active_tab("grid")
     self._load_latest_counts()
 
@@ -104,7 +107,32 @@ class MainForm(MainFormTemplate):
   def clock_timer_tick(self, **event_args):
     self._show_current_datetime()
 
+  def _has_unsaved_setup(self):
+    return self._active_tab == "customize" and self._setup_signature() != self._saved_setup
+
+  def _confirm_discard(self):
+    if not self._has_unsaved_setup():
+      return True
+    if not confirm("Discard your unsaved section changes?", title="Unsaved changes"):
+      return False
+    self._forget_setup_edits()
+    return True
+
+  def _forget_setup_edits(self):
+    # Treat what's on screen as settled (saved, or knowingly thrown away), so
+    # nothing asks about it again. The next visit to Customize starts fresh.
+    self._saved_setup = self._setup_signature()
+
+  def _on_before_unload(self, event):
+    if self._has_unsaved_setup():
+      event.preventDefault()
+      event.returnValue = ""
+
   def _set_active_tab(self, active_tab):
+    # Returns False when the reader chose to stay with unsaved Customize edits.
+    if active_tab != "customize" and not self._confirm_discard():
+      return False
+    self._active_tab = active_tab
     panels = {
       "grid": self.grid_entry_panel,
       "guided": self.guided_panel,
@@ -128,6 +156,7 @@ class MainForm(MainFormTemplate):
       # Coming back to the grid starts with only the first section open.
       for index, section in enumerate(self.tables_panel.get_components()):
         section.set_expanded(index == 0)
+    return True
 
   def _load_latest_counts(self):
     snapshot = anvil.server.call("get_inventory_grid")
@@ -377,8 +406,8 @@ class MainForm(MainFormTemplate):
     if not self._can_enter:
       self._show_error(NO_INITIALS_MESSAGE)
       return
-    self._start_guided_entry()
-    self._set_active_tab("guided")
+    if self._set_active_tab("guided"):
+      self._start_guided_entry()
 
   @handle("customize_tab_button", "click")
   def customize_tab_button_click(self, **event_args):
@@ -394,6 +423,8 @@ class MainForm(MainFormTemplate):
 
   @handle("logout_button", "click")
   def logout_button_click(self, **event_args):
+    if not self._confirm_discard():
+      return
     # Pressing this button blurs a focused grid cell, which starts its save;
     # let that land while the session is still logged in.
     deadline = time.time() + 5
@@ -514,6 +545,7 @@ class MainForm(MainFormTemplate):
       self._show_error(result["message"])
       return
 
+    self._forget_setup_edits()
     self._wizard_cells = []
     # Load first so the grid tab opens the new first section, not the old one.
     self._load_latest_counts()
@@ -521,6 +553,8 @@ class MainForm(MainFormTemplate):
 
   @handle("cancel_setup_button", "click")
   def cancel_setup_button_click(self, **event_args):
+    # Cancel is the explicit discard, so it doesn't ask.
+    self._forget_setup_edits()
     self._set_active_tab("grid")
 
   @handle("wizard_next_button", "click")
