@@ -30,14 +30,6 @@ NO_INITIALS_MESSAGE = (
 )
 
 
-def _ensure_default_grid():
-  # Saving the setup always leaves at least one section, so this only runs on
-  # a new app or one from before sections existed.
-  if list(app_tables.inventory_tables.search(active=True)):
-    return
-  _create_default_grid()
-
-
 @in_transaction
 def _create_default_grid():
   # Check again inside the transaction: two first loads at once would otherwise
@@ -212,9 +204,13 @@ def _build_table(table, rows, columns, saved_cells):
 
 @anvil.server.callable(require_user=True)
 def get_inventory_grid():
-  _ensure_default_grid()
   # One search per table rather than one per section keeps the load quick.
   tables = _active_ordered(app_tables.inventory_tables)
+  if not tables:
+    # Saving the setup always leaves at least one section, so this only runs
+    # on a new app or one from before sections existed.
+    _create_default_grid()
+    tables = _active_ordered(app_tables.inventory_tables)
   rows = _active_ordered(app_tables.inventory_rows)
   columns = _active_ordered(app_tables.inventory_columns)
   rows_by_table = _group_by_table(rows)
