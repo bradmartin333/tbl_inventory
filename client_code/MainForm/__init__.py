@@ -485,14 +485,13 @@ class MainForm(MainFormTemplate):
   @handle("clone_section_button", "click")
   def clone_section_button_click(self, **event_args):
     source = self._active_card
-    # No key, and marked so the server never revives an old section for it:
-    # the copy gets new rows and columns and no counts of its own.
+    # No key, so the server makes new rows and columns and the copy starts
+    # with no counts of its own.
     card = {
       "table_key": None,
       "label": self._clone_name(source["label"]),
       "row_labels_text": source["row_labels_text"],
       "column_labels_text": source["column_labels_text"],
-      "cloned": True,
     }
     self._section_cards.insert(self._active_index() + 1, card)
     self._select_section(card)
@@ -501,9 +500,9 @@ class MainForm(MainFormTemplate):
   def delete_section_button_click(self, **event_args):
     card = self._active_card
     if card["table_key"] is not None and not confirm(
-      f"Remove {card['label']}? Its counts are kept but hidden; adding a section with the "
-      "same name brings them back. Nothing changes until you save.",
-      title="Remove section",
+      f"Delete {card['label']}? Saving removes it with its rows, columns and current "
+      "counts for good; past entries stay in the history.",
+      title="Delete section",
     ):
       return
     index = self._active_index()

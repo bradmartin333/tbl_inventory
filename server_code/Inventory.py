@@ -30,19 +30,24 @@ NO_INITIALS_MESSAGE = (
 )
 
 
+def _live(table, **filters):
+  # Before deletes were real, a removed section, row or column was only marked
+  # active=False. The next setup save deletes those; until then, skip them.
+  return [item for item in table.search(**filters) if item["active"] is not False]
+
+
+def _get_live(table, **filters):
+  return next(iter(_live(table, **filters)), None)
+
+
 @in_transaction
 def _create_default_grid():
   # Check again inside the transaction: two first loads at once would otherwise
   # each make an "Inventory" section. The loser retries and finds the winner's.
-  if list(app_tables.inventory_tables.search(active=True)):
+  if _live(app_tables.inventory_tables):
     return
   table_key = uuid.uuid4().hex
-  app_tables.inventory_tables.add_row(
-    table_key=table_key,
-    label=DEFAULT_TABLE,
-    sort_order=1,
-    active=True,
-  )
+  app_tables.inventory_tables.add_row(table_key=table_key, label=DEFAULT_TABLE, sort_order=1)
 
   # Rows and columns from before sections existed join the first section.
   for item in app_tables.inventory_rows.search(table_key=None):
@@ -53,20 +58,12 @@ def _create_default_grid():
   if not list(app_tables.inventory_rows.search(table_key=table_key)):
     for order, label in enumerate(DEFAULT_ROWS, start=1):
       app_tables.inventory_rows.add_row(
-        row_key=uuid.uuid4().hex,
-        table_key=table_key,
-        label=label,
-        sort_order=order,
-        active=True,
+        row_key=uuid.uuid4().hex, table_key=table_key, label=label, sort_order=order
       )
   if not list(app_tables.inventory_columns.search(table_key=table_key)):
     for order, label in enumerate(DEFAULT_COLUMNS, start=1):
       app_tables.inventory_columns.add_row(
-        column_key=uuid.uuid4().hex,
-        table_key=table_key,
-        label=label,
-        sort_order=order,
-        active=True,
+        column_key=uuid.uuid4().hex, table_key=table_key, label=label, sort_order=order
       )
 
 
@@ -140,14 +137,14 @@ def activate_account(email):
   return {"ok": True}
 
 
-def _active_ordered(table):
-  items = list(table.search(active=True))
+def _ordered(table):
+  items = _live(table)
   items.sort(key=lambda item: item["sort_order"] or 0)
   return items
 
 
 def _setup_version(tables, rows, columns):
-  # A fingerprint of the active setup. Customize sends back the one it loaded,
+  # A fingerprint of the current setup. Customize sends back the one it loaded,
   # so a save built on out-of-date data is refused rather than quietly undoing
   # what someone else saved in the meantime.
   parts = [
@@ -205,14 +202,14 @@ def _build_table(table, rows, columns, saved_cells):
 @anvil.server.callable(require_user=True)
 def get_inventory_grid():
   # One search per table rather than one per section keeps the load quick.
-  tables = _active_ordered(app_tables.inventory_tables)
+  tables = _ordered(app_tables.inventory_tables)
   if not tables:
     # Saving the setup always leaves at least one section, so this only runs
     # on a new app or one from before sections existed.
     _create_default_grid()
-    tables = _active_ordered(app_tables.inventory_tables)
-  rows = _active_ordered(app_tables.inventory_rows)
-  columns = _active_ordered(app_tables.inventory_columns)
+    tables = _ordered(app_tables.inventory_tables)
+  rows = _ordered(app_tables.inventory_rows)
+  columns = _ordered(app_tables.inventory_columns)
   rows_by_table = _group_by_table(rows)
   columns_by_table = _group_by_table(columns)
   saved_cells = {
@@ -250,39 +247,38 @@ def _split_labels(raw_text):
   return labels
 
 
-def _reconcile_labels(table, labels, key_name, table_key):
-  # Labels match within one section, so the same item name can sit in two.
-  existing = list(table.search(table_key=table_key))
-  by_label = {
-    item["label"].strip().casefold(): item
-    for item in existing
-    if item["label"]
-  }
-  used_keys = set()
+def _delete_items(items, key_name):
+  # Current counts go with their row or column. History keeps its own copy of
+  # every name, so past entries still read correctly.
+  for item in list(items):
+    for cell in list(app_tables.inventory_cells.search(**{key_name: item[key_name]})):
+      cell.delete()
+    item.delete()
 
-  for index, label in enumerate(labels):
-    item = by_label.get(label.casefold())
+
+def _delete_section(table):
+  _delete_items(app_tables.inventory_rows.search(table_key=table["table_key"]), "row_key")
+  _delete_items(app_tables.inventory_columns.search(table_key=table["table_key"]), "column_key")
+  table.delete()
+
+
+def _sync_labels(table, labels, key_name, table_key):
+  # Labels match within one section, so the same item name can sit in two. A
+  # label that's gone is deleted with its counts, and a new or renamed one
+  # starts fresh rather than showing another item's counts.
+  by_label = {}
+  leftovers = []
+  for item in table.search(table_key=table_key):
+    if item["active"] is False:
+      leftovers.append(item)
+    else:
+      by_label[(item["label"] or "").strip().casefold()] = item
+  for order, label in enumerate(labels, start=1):
+    item = by_label.pop(label.casefold(), None)
     if item is None:
-      # A new label gets a new identity so old values never appear under it.
-      item = table.add_row(
-        **{
-          key_name: uuid.uuid4().hex,
-          "table_key": table_key,
-          "label": label,
-          "sort_order": index + 1,
-          "active": True,
-        }
-      )
-      existing.append(item)
-
-    item["label"] = label
-    item["sort_order"] = index + 1
-    item["active"] = True
-    used_keys.add(item[key_name])
-
-  for item in existing:
-    if item[key_name] not in used_keys:
-      item["active"] = False
+      item = table.add_row(**{key_name: uuid.uuid4().hex, "table_key": table_key})
+    item.update(label=label, sort_order=order)
+  _delete_items(leftovers + list(by_label.values()), key_name)
 
 
 def _section_key(label):
@@ -292,8 +288,7 @@ def _section_key(label):
 
 
 def _plan_section(section):
-  # Returns (table or None, label, row_labels, column_labels, cloned), or an
-  # error message.
+  # Returns (table or None, label, row_labels, column_labels), or an error message.
   if not isinstance(section, dict) or not isinstance(section.get("label"), str):
     return STALE_SETUP_MESSAGE
   label = section["label"].strip()
@@ -306,7 +301,7 @@ def _plan_section(section):
   if section.get("table_key") is not None:
     if not isinstance(section["table_key"], str):
       return STALE_SETUP_MESSAGE
-    table = app_tables.inventory_tables.get(table_key=section["table_key"], active=True)
+    table = _get_live(app_tables.inventory_tables, table_key=section["table_key"])
     if table is None:
       return STALE_SETUP_MESSAGE
 
@@ -318,17 +313,16 @@ def _plan_section(section):
     return f"{label}: enter 1–{MAX_COLUMNS} unique quantity columns, one per line."
   if any(len(item_label) > MAX_LABEL_LENGTH for item_label in row_labels + column_labels):
     return f"{label}: keep each row and column label under {MAX_LABEL_LENGTH} characters."
-  return table, label, row_labels, column_labels, section.get("cloned") is True
+  return table, label, row_labels, column_labels
 
 
 @anvil.server.callable(require_user=True)
 @in_transaction
 def save_inventory_configuration(sections, setup_version=None):
   current_version = _setup_version(
-    *(
-      list(table.search(active=True))
-      for table in (app_tables.inventory_tables, app_tables.inventory_rows, app_tables.inventory_columns)
-    )
+    _live(app_tables.inventory_tables),
+    _live(app_tables.inventory_rows),
+    _live(app_tables.inventory_columns),
   )
   if setup_version != current_version:
     return {"ok": False, "message": STALE_SETUP_MESSAGE}
@@ -345,48 +339,26 @@ def save_inventory_configuration(sections, setup_version=None):
       return {"ok": False, "message": plan}
     plans.append(plan)
   seen_labels = set()
-  for _, label, _, _, _ in plans:
+  for _, label, _, _ in plans:
     if _section_key(label) in seen_labels:
       return {"ok": False, "message": f"Two sections are called {label}. Give each a different name."}
     seen_labels.add(_section_key(label))
-  existing_keys = [table["table_key"] for table, _, _, _, _ in plans if table is not None]
-  if len(set(existing_keys)) != len(existing_keys):
+  kept_keys = [table["table_key"] for table, _, _, _ in plans if table is not None]
+  if len(set(kept_keys)) != len(kept_keys):
     return {"ok": False, "message": STALE_SETUP_MESSAGE}
 
-  # Adding or renaming a section to the name of one that isn't being kept
-  # (hidden earlier, or deleted in this same edit) takes that one back, so its
-  # rows, columns and counts return instead of starting empty. A renamed
-  # section's own data is hidden in its place, so each name keeps one set of
-  # history. Clones always start new, as Customize promises. Active ones sort
-  # last so they win over long-hidden ones.
-  spare = {
-    _section_key(table["label"]): table
-    for table in sorted(app_tables.inventory_tables.search(), key=lambda table: bool(table["active"]))
-    if table["table_key"] not in existing_keys
-  }
-  resolved = []
-  for table, label, row_labels, column_labels, cloned in plans:
-    renamed = table is not None and _section_key(table["label"]) != _section_key(label)
-    if not cloned and (table is None or renamed):
-      table = spare.get(_section_key(label), table)
-    resolved.append((table, label, row_labels, column_labels))
-  plans = resolved
+  # Deleting is final: a section left out goes with its rows, columns and
+  # current counts. This also clears sections hidden before deletes were real.
+  for table in list(app_tables.inventory_tables.search()):
+    if table["table_key"] not in kept_keys:
+      _delete_section(table)
 
-  used_keys = set()
   for order, (table, label, row_labels, column_labels) in enumerate(plans, start=1):
     if table is None:
       table = app_tables.inventory_tables.add_row(table_key=uuid.uuid4().hex)
-    table.update(label=label, sort_order=order, active=True)
-    _reconcile_labels(app_tables.inventory_rows, row_labels, "row_key", table["table_key"])
-    _reconcile_labels(app_tables.inventory_columns, column_labels, "column_key", table["table_key"])
-    used_keys.add(table["table_key"])
-
-  # A removed section keeps its rows, columns and history, just hidden.
-  for table in app_tables.inventory_tables.search(active=True):
-    if table["table_key"] not in used_keys:
-      table["active"] = False
-      _reconcile_labels(app_tables.inventory_rows, [], "row_key", table["table_key"])
-      _reconcile_labels(app_tables.inventory_columns, [], "column_key", table["table_key"])
+    table.update(label=label, sort_order=order)
+    _sync_labels(app_tables.inventory_rows, row_labels, "row_key", table["table_key"])
+    _sync_labels(app_tables.inventory_columns, column_labels, "column_key", table["table_key"])
   return {"ok": True}
 
 
@@ -399,11 +371,11 @@ def save_grid_cell(row_key, column_key, raw_quantity):
 
   if not isinstance(row_key, str) or not isinstance(column_key, str):
     return {"ok": False, "message": STALE_GRID_MESSAGE}
-  row = app_tables.inventory_rows.get(row_key=row_key, active=True)
-  column = app_tables.inventory_columns.get(column_key=column_key, active=True)
+  row = _get_live(app_tables.inventory_rows, row_key=row_key)
+  column = _get_live(app_tables.inventory_columns, column_key=column_key)
   if row is None or column is None or row["table_key"] != column["table_key"]:
     return {"ok": False, "message": STALE_GRID_MESSAGE}
-  table = app_tables.inventory_tables.get(table_key=row["table_key"], active=True)
+  table = _get_live(app_tables.inventory_tables, table_key=row["table_key"])
   if table is None:
     return {"ok": False, "message": STALE_GRID_MESSAGE}
 
