@@ -151,16 +151,11 @@ class MainForm(MainFormTemplate):
     for tab_name, panel in panels.items():
       panel.visible = tab_name == active_tab
       buttons[tab_name].enabled = tab_name != active_tab
-
-    if active_tab == "grid":
-      # Coming back to the grid starts with only the first section open.
-      for index, section in enumerate(self.tables_panel.get_components()):
-        section.set_expanded(index == 0)
     return True
 
   def _load_latest_counts(self):
     snapshot = anvil.server.call("get_inventory_grid")
-    # A reload keeps open whichever sections the reader opened.
+    # Only a load decides which sections are open; switching tabs leaves them be.
     open_keys = None if self._snapshot is None else {
       table["table_key"] for table in self._snapshot["tables"] if table["expanded"]
     }
@@ -174,12 +169,14 @@ class MainForm(MainFormTemplate):
       f"Columns (up to {self._limits['columns']})"
     )
     tables = snapshot["tables"]
-    for index, table in enumerate(tables):
+    # The first section starts open. After that the reader's choice stands,
+    # unless every section they had open is gone (deleted in Customize).
+    keys = {table["table_key"] for table in tables}
+    if open_keys is None or (open_keys and not open_keys & keys):
+      open_keys = {tables[0]["table_key"]} if tables else set()
+    for table in tables:
       table["show_toggle"] = len(tables) > 1
-      table["expanded"] = (
-        not table["show_toggle"]
-        or (index == 0 if open_keys is None else table["table_key"] in open_keys)
-      )
+      table["expanded"] = not table["show_toggle"] or table["table_key"] in open_keys
       for row in table["rows"]:
         for cell in row["cells"]:
           cell["editable"] = self._can_enter
@@ -547,7 +544,6 @@ class MainForm(MainFormTemplate):
 
     self._forget_setup_edits()
     self._wizard_cells = []
-    # Load first so the grid tab opens the new first section, not the old one.
     self._load_latest_counts()
     self._set_active_tab("grid")
 
