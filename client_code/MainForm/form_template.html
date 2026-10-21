@@ -52,14 +52,26 @@
     
         <anvil-component type="ColumnPanel" name="table_editor_panel" prop:role="workspace-panel">
           <div class="setup-field setup-sections-field">
-              <label>Sections
-                  <anvil-component type="TextArea" name="section_labels_area" prop:placeholder="Freezer
-Dry goods"></anvil-component>
-              </label>
-              <p class="setup-hint">One per line, in the order the grid shows them. Tap a section's line to edit its rows and columns below.</p>
+              <label>Sections</label>
+              <div class="setup-add-row">
+                  <anvil-component type="TextBox" name="new_section_box" prop:placeholder="New section name"></anvil-component>
+                  <anvil-component type="Button" name="add_section_button" prop:text="Add section"></anvil-component>
+              </div>
+              <anvil-component type="RepeatingPanel" name="section_list_panel" prop:item_template="TBL_Inventory.MainForm.SectionListItem" prop:role="section-list"></anvil-component>
+              <div class="section-toolbox">
+                  <anvil-component type="Button" name="move_up_button" prop:text="▲ Up" prop:role="secondary-button"></anvil-component>
+                  <anvil-component type="Button" name="move_down_button" prop:text="▼ Down" prop:role="secondary-button"></anvil-component>
+                  <anvil-component type="Button" name="clone_section_button" prop:text="Clone" prop:role="secondary-button"></anvil-component>
+                  <anvil-component type="Button" name="delete_section_button" prop:text="Delete" prop:role="secondary-button"></anvil-component>
+              </div>
+              <p class="setup-hint">The grid shows sections in this order. Tap a section to edit it below. Changes apply when you save.</p>
           </div>
           <div class="section-editor">
-              <anvil-component type="Label" name="section_label" prop:role="section-editor-heading" prop:spacing_above="none" prop:spacing_below="none"></anvil-component>
+              <div class="setup-field">
+                  <label>Name
+                      <anvil-component type="TextBox" name="section_name_box"></anvil-component>
+                  </label>
+              </div>
               <div class="setup-fields">
                   <div class="setup-field">
                       <label>Rows

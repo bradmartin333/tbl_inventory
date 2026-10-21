@@ -578,9 +578,71 @@ input.anvil-role-matrix-quantity {
 
 /* Section setup */
 
-.setup-sections-field textarea.anvil-text-area {
+.setup-sections-field > label {
+  margin-bottom: 6px;
+}
+
+.setup-add-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.setup-add-row > input.anvil-text-box {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* The 1px gaps over a border-colored backing draw the dividers, whatever
+   wrappers Anvil puts around each item. */
+.anvil-role-section-list > div {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--blank-border);
+  border-radius: 8px;
+  background: var(--blank-border);
+}
+
+.anvil-role-section-list-item > button,
+.anvil-role-section-list-item > button:hover,
+.anvil-role-section-list-item > button:focus {
+  justify-content: flex-start;
   width: 100%;
-  min-height: 96px;
+  min-height: 44px;
+  border: none;
+  border-radius: 0;
+  background: var(--blank-surface);
+  color: var(--blank-text);
+  font-weight: 400;
+  text-align: left;
+}
+
+.anvil-role-section-list-item > button:hover {
+  background: var(--blank-control-bg-hover);
+}
+
+.anvil-role-section-list-item > button:focus-visible {
+  box-shadow: inset 0 0 0 3px var(--blank-focus-ring);
+}
+
+.section-list-item.is-selected .anvil-role-section-list-item > button {
+  box-shadow: inset 4px 0 0 var(--blank-primary);
+  background: var(--blank-surface-muted);
+  color: var(--blank-primary-dark);
+  font-weight: 700;
+}
+
+.section-list-item.is-selected .anvil-role-section-list-item > button:focus-visible {
+  box-shadow: inset 4px 0 0 var(--blank-primary), inset 0 0 0 3px var(--blank-focus-ring);
+}
+
+.section-toolbox {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 0;
 }
 
 .setup-hint {
@@ -597,11 +659,8 @@ input.anvil-role-matrix-quantity {
   background: var(--blank-bg);
 }
 
-.anvil-role-section-editor-heading {
-  display: block;
-  margin-bottom: 10px;
-  font-size: 18px;
-  font-weight: 700;
+.section-editor > .setup-field {
+  margin-bottom: 16px;
 }
 
 .section-editor .setup-field textarea.anvil-text-area {
@@ -685,6 +744,17 @@ input.anvil-role-matrix-quantity {
 
   .setup-fields {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Four even buttons fit one phone-width row. */
+  .section-toolbox > .anvil-button {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .section-toolbox > .anvil-button > button {
+    width: 100%;
+    padding: 0 6px;
   }
 
   .guided-card,

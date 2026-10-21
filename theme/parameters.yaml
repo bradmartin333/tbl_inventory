@@ -18,6 +18,8 @@ roles:
 - components: [Button]
   name: secondary-button
 - components: [Button]
+  name: section-list-item
+- components: [Button]
   name: section-toggle
 - components: [Button]
   name: workspace-tab
@@ -27,8 +29,6 @@ roles:
   name: cell-latest-meta
 - components: [Label]
   name: current-datetime
-- components: [Label]
-  name: section-editor-heading
 - components: [Label]
   name: user-email
 - components: [Label]
@@ -43,6 +43,8 @@ roles:
   name: matrix-column-headers
 - components: [RepeatingPanel]
   name: matrix-row-cells
+- components: [RepeatingPanel]
+  name: section-list
 - components: [TextBox]
   name: matrix-quantity
 - components: [TextBox]

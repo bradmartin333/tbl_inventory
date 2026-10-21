@@ -4,7 +4,7 @@ import math
 import uuid
 
 import anvil.server
-from anvil.tables import app_tables
+from anvil.tables import app_tables, in_transaction
 
 
 DEFAULT_TABLE = "Inventory"
@@ -24,6 +24,15 @@ NO_INITIALS_MESSAGE = (
 def _ensure_default_grid():
   # Saving the setup always leaves at least one section, so this only runs on
   # a new app or one from before sections existed.
+  if list(app_tables.inventory_tables.search(active=True)):
+    return
+  _create_default_grid()
+
+
+@in_transaction
+def _create_default_grid():
+  # Check again inside the transaction: two first loads at once would otherwise
+  # each make an "Inventory" section. The loser retries and finds the winner's.
   if list(app_tables.inventory_tables.search(active=True)):
     return
   table_key = uuid.uuid4().hex
@@ -277,11 +286,14 @@ def _plan_section(section):
 
 
 @anvil.server.callable(require_user=True)
+@in_transaction
 def save_inventory_configuration(sections):
   if not isinstance(sections, list) or not 1 <= len(sections) <= MAX_TABLES:
     return {"ok": False, "message": f"Enter 1–{MAX_TABLES} unique sections, one per line."}
 
-  # Check every section before writing any, so a bad one leaves the grid as it was.
+  # Check every section before writing any. The transaction covers the rest: a
+  # failure partway through, or another admin saving at once, never leaves a
+  # half-applied setup.
   plans = []
   for section in sections:
     plan = _plan_section(section)
@@ -314,6 +326,7 @@ def save_inventory_configuration(sections):
 
 
 @anvil.server.callable(require_user=True)
+@in_transaction
 def save_grid_cell(row_key, column_key, raw_quantity):
   initials = _user_initials(anvil.users.get_user())
   if initials is None:
@@ -337,7 +350,8 @@ def save_grid_cell(row_key, column_key, raw_quantity):
     }
 
   entered_at = datetime.now()
-  # search() rather than get(): a concurrent first save can leave a duplicate.
+  # The transaction stops two first saves both adding a cell; search() rather
+  # than get() still copes with duplicates saved before it was added.
   latest = next(iter(app_tables.inventory_cells.search(row_key=row_key, column_key=column_key)), None)
   if latest is None:
     latest = app_tables.inventory_cells.add_row(row_key=row_key, column_key=column_key)
