@@ -195,6 +195,9 @@ class MainForm(MainFormTemplate):
     self._error_notification.show()
 
   def _open_table_editor(self):
+    # Start from the latest setup, not the grid as it was last loaded: edits
+    # built on an old copy would only be refused as stale on save.
+    self._load_latest_counts()
     tables = self._snapshot["tables"]
     # Each card keeps its section's key for the whole edit, so moving or
     # renaming it never loses the rows, columns and counts behind it.
