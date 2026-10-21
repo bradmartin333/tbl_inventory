@@ -599,6 +599,16 @@ input.anvil-role-matrix-quantity {
   min-width: 0;
 }
 
+/* A square "+" the height of the name box; its tooltip names it. */
+.setup-add-row > .anvil-button > button {
+  width: 42px;
+  height: 42px;
+  min-height: 42px;
+  padding: 0;
+  font-size: 22px;
+  line-height: 1;
+}
+
 /* The 1px gaps over a border-colored backing draw the dividers, whatever
    wrappers Anvil puts around each item. */
 .anvil-role-section-list > div {
