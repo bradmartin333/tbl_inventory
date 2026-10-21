@@ -299,7 +299,7 @@ def _plan_section(section):
   # Returns (table or None, label, row_labels, column_labels, cloned), or an
   # error message.
   if not isinstance(section, dict) or not isinstance(section.get("label"), str):
-    return STALE_GRID_MESSAGE
+    return STALE_SETUP_MESSAGE
   label = section["label"].strip()
   if not label:
     return "Give every section a name."
@@ -309,10 +309,10 @@ def _plan_section(section):
   table = None
   if section.get("table_key") is not None:
     if not isinstance(section["table_key"], str):
-      return STALE_GRID_MESSAGE
+      return STALE_SETUP_MESSAGE
     table = app_tables.inventory_tables.get(table_key=section["table_key"], active=True)
     if table is None:
-      return STALE_GRID_MESSAGE
+      return STALE_SETUP_MESSAGE
 
   row_labels = _split_labels(section.get("row_labels_text"))
   column_labels = _split_labels(section.get("column_labels_text"))
@@ -355,7 +355,7 @@ def save_inventory_configuration(sections, setup_version=None):
     seen_labels.add(_section_key(label))
   existing_keys = [table["table_key"] for table, _, _, _, _ in plans if table is not None]
   if len(set(existing_keys)) != len(existing_keys):
-    return {"ok": False, "message": STALE_GRID_MESSAGE}
+    return {"ok": False, "message": STALE_SETUP_MESSAGE}
 
   # Adding or renaming a section to the name of one that isn't being kept
   # (hidden earlier, or deleted in this same edit) takes that one back, so its
