@@ -403,6 +403,13 @@ input.anvil-role-wizard-quantity {
   padding: 8px 4px;
 }
 
+/* A panel with more than one planned feature rules them apart. */
+.future-feature-card + .future-feature-card {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--blank-border);
+}
+
 .future-feature-card .inventory-kicker {
   margin: 0 0 8px;
   color: var(--blank-primary);

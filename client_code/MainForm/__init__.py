@@ -112,14 +112,14 @@ class MainForm(MainFormTemplate):
       "grid": self.grid_entry_panel,
       "guided": self.guided_panel,
       "customize": self.table_editor_panel,
-      "charts": self.charts_panel,
+      "analytics": self.analytics_panel,
       "email": self.email_panel,
     }
     buttons = {
       "grid": self.grid_tab_button,
       "guided": self.guided_tab_button,
       "customize": self.customize_tab_button,
-      "charts": self.charts_tab_button,
+      "analytics": self.analytics_tab_button,
       "email": self.email_tab_button,
     }
 
@@ -360,9 +360,9 @@ class MainForm(MainFormTemplate):
   def customize_tab_button_click(self, **event_args):
     self._open_table_editor()
 
-  @handle("charts_tab_button", "click")
-  def charts_tab_button_click(self, **event_args):
-    self._set_active_tab("charts")
+  @handle("analytics_tab_button", "click")
+  def analytics_tab_button_click(self, **event_args):
+    self._set_active_tab("analytics")
 
   @handle("email_tab_button", "click")
   def email_tab_button_click(self, **event_args):

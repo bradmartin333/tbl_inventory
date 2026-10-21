@@ -12,7 +12,7 @@
             <anvil-component type="Button" name="grid_tab_button" prop:text="Grid entry" prop:role="workspace-tab"></anvil-component>
             <anvil-component type="Button" name="guided_tab_button" prop:text="Guided entry" prop:role="workspace-tab"></anvil-component>
             <anvil-component type="Button" name="customize_tab_button" prop:text="Customize" prop:role="workspace-tab"></anvil-component>
-            <anvil-component type="Button" name="charts_tab_button" prop:text="Charts" prop:role="workspace-tab"></anvil-component>
+            <anvil-component type="Button" name="analytics_tab_button" prop:text="Analytics" prop:role="workspace-tab"></anvil-component>
             <anvil-component type="Button" name="email_tab_button" prop:text="Email" prop:role="workspace-tab"></anvil-component>
             <anvil-component type="Button" name="refresh_button" prop:text="Refresh" prop:role="refresh-button"></anvil-component>
         </nav>
@@ -99,21 +99,27 @@ Large containers"></anvil-component>
           </div>
         </anvil-component>
     
-        <anvil-component type="ColumnPanel" name="charts_panel" prop:role="workspace-panel">
+        <anvil-component type="ColumnPanel" name="analytics_panel" prop:role="workspace-panel">
           <div class="future-feature-card">
               <p class="inventory-kicker">feature</p>
               <h2>Charts from your inventory history</h2>
               <p>Each saved quantity is stored with its row, column, initials, and date. That history can support charts and trends when you decide to add them.</p>
               <span class="feature-status">Supported by existing database</span>
           </div>
+          <div class="future-feature-card">
+              <p class="inventory-kicker">feature</p>
+              <h2>On-par levels and alerts</h2>
+              <p>Set an on-par range for each item: the quantity you want on hand and how many days can pass between counts. Cells that fall below par or go uncounted too long are highlighted in the grid, and an alert can notify the people you choose.</p>
+              <span class="feature-status">Builds on the saved history</span>
+          </div>
         </anvil-component>
-    
+
         <anvil-component type="ColumnPanel" name="email_panel" prop:role="workspace-panel">
           <div class="future-feature-card">
-              <p style class="inventory-kicker">feature</p>
-              <h2 style>Weekly digest and triggered emails</h2>
-              <p style>A scheduled job could send a weekly summary of inventory changes to your team. On-par values can be added for an entry's accepted days-since-entry and quantities. Triggered on-par alerts can change grid cell styling and send an email to specified users.</p>
-              <span style class="feature-status">Can easily be integrated with a Google account</span>
+              <p class="inventory-kicker">feature</p>
+              <h2>Weekly digest and alert emails</h2>
+              <p>A scheduled job could send a weekly summary of inventory changes to your team, and the on-par alerts described under Analytics could email the people you choose.</p>
+              <span class="feature-status">Can easily be integrated with a Google account</span>
           </div>
         </anvil-component>
     </section>
