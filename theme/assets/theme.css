@@ -590,6 +590,34 @@ input.anvil-role-matrix-quantity {
 
 /* Section setup */
 
+/* Stays in view while scrolling long row lists, so saving is always a tap away. */
+.customize-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 18px;
+  padding: 6px 0;
+  background: var(--blank-surface);
+}
+
+.customize-header .workspace-panel-heading {
+  margin: 0;
+}
+
+.anvil-role-edited-status > button:disabled,
+.anvil-role-edited-status > button:disabled:hover {
+  border-color: transparent;
+  background: var(--blank-surface-muted);
+  color: var(--blank-muted);
+  opacity: 1;
+  cursor: default;
+}
+
 .setup-sections-field > label {
   margin-bottom: 6px;
 }

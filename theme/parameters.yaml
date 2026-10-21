@@ -14,6 +14,8 @@ color_scheme:
   - {color: '#edf3ec', name: Surface Muted}
 roles:
 - components: [Button]
+  name: edited-status
+- components: [Button]
   name: refresh-button
 - components: [Button]
   name: secondary-button

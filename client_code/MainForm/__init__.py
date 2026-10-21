@@ -15,8 +15,12 @@ MAX_SECTIONS = 10
 MAX_SECTION_NAME = 60
 
 
+def _clean_lines(text):
+  return [line.strip() for line in (text or "").split("\n") if line.strip()]
+
+
 def _count_lines(text):
-  return sum(1 for line in (text or "").split("\n") if line.strip())
+  return len(_clean_lines(text))
 
 
 class MainForm(MainFormTemplate):
@@ -30,6 +34,7 @@ class MainForm(MainFormTemplate):
     self._saves_in_flight = 0
     self._snapshot = None
     self._section_cards = []
+    self._saved_setup = []
     self._active_card = None
     self.section_list_panel.add_event_handler("x-select-section", self._on_select_section)
     self._wizard_cells = []
@@ -174,6 +179,8 @@ class MainForm(MainFormTemplate):
       }
       for table in tables
     ]
+    # What Customize opened with, so any later difference shows as "Edited".
+    self._saved_setup = self._setup_signature()
     self.new_section_box.text = ""
     # Start on the section the grid has open, so Customize edits what was in view.
     open_index = next((index for index, table in enumerate(tables) if table["expanded"]), 0)
@@ -213,6 +220,25 @@ class MainForm(MainFormTemplate):
     self.delete_section_button.enabled = len(cards) > 1
     self.add_section_button.enabled = not full
     self.new_section_box.enabled = not full
+    self._show_edited_state()
+
+  def _setup_signature(self):
+    # Spacing and blank lines don't change what gets saved, so they don't count.
+    return [
+      (
+        card["table_key"],
+        card["label"].strip(),
+        _clean_lines(card["row_labels_text"]),
+        _clean_lines(card["column_labels_text"]),
+      )
+      for card in self._section_cards
+    ]
+
+  def _show_edited_state(self):
+    edited = self._setup_signature() != self._saved_setup
+    self.edited_status_button.text = "Edited · Save now" if edited else "No unsaved changes"
+    self.edited_status_button.enabled = edited
+    self.save_setup_button.enabled = edited
 
   def _name_taken(self, name):
     return any(card["label"].lower() == name.lower() for card in self._section_cards)
@@ -437,14 +463,22 @@ class MainForm(MainFormTemplate):
 
   @handle("save_setup_button", "click")
   def save_setup_button_click(self, **event_args):
+    self._save_setup()
+
+  @handle("edited_status_button", "click")
+  def edited_status_button_click(self, **event_args):
+    self._save_setup()
+
+  def _save_setup(self):
     self.save_setup_button.enabled = False
+    self.edited_status_button.enabled = False
     try:
       result = anvil.server.call(
         "save_inventory_configuration",
         self._section_cards,
       )
     finally:
-      self.save_setup_button.enabled = True
+      self._show_edited_state()
 
     if not result["ok"]:
       self._show_error(result["message"])
