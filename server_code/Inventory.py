@@ -1,5 +1,6 @@
 import anvil.users
 from datetime import datetime
+import hashlib
 import math
 import uuid
 
@@ -19,6 +20,10 @@ MAX_COLUMNS = 5
 # For section, row and column names alike.
 MAX_LABEL_LENGTH = 60
 STALE_GRID_MESSAGE = "Refresh the table and try again."
+STALE_SETUP_MESSAGE = (
+  "Someone else changed the sections since you opened Customize. "
+  "Press Cancel, then open Customize again to see their changes."
+)
 NO_INITIALS_MESSAGE = (
   "Your account needs initials (1–5 letters) before you can enter counts. "
   "Ask an admin to add them, then reload this page."
@@ -149,6 +154,20 @@ def _active_ordered(table):
   return items
 
 
+def _setup_version(tables, rows, columns):
+  # A fingerprint of the active setup. Customize sends back the one it loaded,
+  # so a save built on out-of-date data is refused rather than quietly undoing
+  # what someone else saved in the meantime.
+  parts = [
+    sorted(
+      (item[key_name], item["table_key"], item["label"], item["sort_order"])
+      for item in items
+    )
+    for items, key_name in ((tables, "table_key"), (rows, "row_key"), (columns, "column_key"))
+  ]
+  return hashlib.sha1(repr(parts).encode()).hexdigest()
+
+
 def _group_by_table(items):
   grouped = {}
   for item in items:
@@ -195,8 +214,11 @@ def _build_table(table, rows, columns, saved_cells):
 def get_inventory_grid():
   _ensure_default_grid()
   # One search per table rather than one per section keeps the load quick.
-  rows_by_table = _group_by_table(_active_ordered(app_tables.inventory_rows))
-  columns_by_table = _group_by_table(_active_ordered(app_tables.inventory_columns))
+  tables = _active_ordered(app_tables.inventory_tables)
+  rows = _active_ordered(app_tables.inventory_rows)
+  columns = _active_ordered(app_tables.inventory_columns)
+  rows_by_table = _group_by_table(rows)
+  columns_by_table = _group_by_table(columns)
   saved_cells = {
     (cell["row_key"], cell["column_key"]): cell
     for cell in app_tables.inventory_cells.search()
@@ -210,6 +232,7 @@ def get_inventory_grid():
       "columns": MAX_COLUMNS,
       "label_length": MAX_LABEL_LENGTH,
     },
+    "setup_version": _setup_version(tables, rows, columns),
     "tables": [
       _build_table(
         table,
@@ -217,7 +240,7 @@ def get_inventory_grid():
         columns_by_table.get(table["table_key"], []),
         saved_cells,
       )
-      for table in _active_ordered(app_tables.inventory_tables)
+      for table in tables
     ],
   }
 
@@ -297,13 +320,21 @@ def _plan_section(section):
 
 @anvil.server.callable(require_user=True)
 @in_transaction
-def save_inventory_configuration(sections):
+def save_inventory_configuration(sections, setup_version=None):
+  current_version = _setup_version(
+    *(
+      list(table.search(active=True))
+      for table in (app_tables.inventory_tables, app_tables.inventory_rows, app_tables.inventory_columns)
+    )
+  )
+  if setup_version != current_version:
+    return {"ok": False, "message": STALE_SETUP_MESSAGE}
   if not isinstance(sections, list) or not 1 <= len(sections) <= MAX_SECTIONS:
     return {"ok": False, "message": f"Enter 1–{MAX_SECTIONS} unique sections, one per line."}
 
-  # Check every section before writing any. The transaction covers the rest: a
-  # failure partway through, or another admin saving at once, never leaves a
-  # half-applied setup.
+  # Check every section before writing any. The transaction makes the writes
+  # all-or-nothing, and the version check above stops a save from an
+  # out-of-date Customize undoing another admin's changes.
   plans = []
   for section in sections:
     plan = _plan_section(section)

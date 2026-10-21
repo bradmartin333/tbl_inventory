@@ -183,6 +183,9 @@ class MainForm(MainFormTemplate):
     ]
     # What Customize opened with, so any later difference shows as "Edited".
     self._saved_setup = self._setup_signature()
+    # Taken now, not at save time: a Refresh mid-edit mustn't make old edits
+    # look current to the server.
+    self._editing_version = self._snapshot["setup_version"]
     self.new_section_box.text = ""
     # Start on the section the grid has open, so Customize edits what was in view.
     open_index = next((index for index, table in enumerate(tables) if table["expanded"]), 0)
@@ -475,6 +478,7 @@ class MainForm(MainFormTemplate):
       result = anvil.server.call(
         "save_inventory_configuration",
         self._section_cards,
+        self._editing_version,
       )
     finally:
       self.cancel_setup_button.enabled = True
