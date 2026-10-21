@@ -295,7 +295,7 @@ def _plan_section(section):
     return STALE_GRID_MESSAGE
   label = section["label"].strip()
   if not label:
-    return "Enter each section name on its own line."
+    return "Give every section a name."
   if len(label) > MAX_LABEL_LENGTH:
     return f"Keep each section name under {MAX_LABEL_LENGTH} characters."
 
@@ -330,7 +330,7 @@ def save_inventory_configuration(sections, setup_version=None):
   if setup_version != current_version:
     return {"ok": False, "message": STALE_SETUP_MESSAGE}
   if not isinstance(sections, list) or not 1 <= len(sections) <= MAX_SECTIONS:
-    return {"ok": False, "message": f"Enter 1–{MAX_SECTIONS} unique sections, one per line."}
+    return {"ok": False, "message": f"Keep between 1 and {MAX_SECTIONS} sections."}
 
   # Check every section before writing any. The transaction makes the writes
   # all-or-nothing, and the version check above stops a save from an
@@ -341,9 +341,11 @@ def save_inventory_configuration(sections, setup_version=None):
     if isinstance(plan, str):
       return {"ok": False, "message": plan}
     plans.append(plan)
-  labels = [label.casefold() for _, label, _, _ in plans]
-  if len(set(labels)) != len(labels):
-    return {"ok": False, "message": f"Enter 1–{MAX_SECTIONS} unique sections, one per line."}
+  seen_labels = set()
+  for _, label, _, _ in plans:
+    if label.casefold() in seen_labels:
+      return {"ok": False, "message": f"Two sections are called {label}. Give each a different name."}
+    seen_labels.add(label.casefold())
   existing_keys = [table["table_key"] for table, _, _, _ in plans if table is not None]
   if len(set(existing_keys)) != len(existing_keys):
     return {"ok": False, "message": STALE_GRID_MESSAGE}

@@ -30,6 +30,8 @@ roles:
 - components: [Label]
   name: cell-latest-meta
 - components: [Label]
+  name: field-error
+- components: [Label]
   name: current-datetime
 - components: [Label]
   name: user-email

@@ -211,7 +211,8 @@ class MainForm(MainFormTemplate):
     self.section_list_panel.items = [
       {
         "index": index,
-        "label": card["label"] or "(no name)",
+        # Flags a naming problem in any section, not just the one open below.
+        "label": ("⚠ " if self._name_problem(card) else "") + (card["label"] or "(no name)"),
         "row_count": _count_lines(card["row_labels_text"]),
         "column_count": _count_lines(card["column_labels_text"]),
         "selected": index == active_index,
@@ -225,6 +226,9 @@ class MainForm(MainFormTemplate):
     self.delete_section_button.enabled = len(cards) > 1
     self.add_section_button.enabled = not full
     self.new_section_box.enabled = not full
+    problem = self._name_problem(self._active_card)
+    self.section_name_error.text = problem or ""
+    self.section_name_error.visible = problem is not None
     self._show_edited_state()
 
   def _setup_signature(self):
@@ -246,8 +250,23 @@ class MainForm(MainFormTemplate):
     # With nothing to throw away, the tabs already lead out of Customize.
     self.cancel_setup_button.visible = edited
 
-  def _name_taken(self, name):
-    return any(card["label"].lower() == name.lower() for card in self._section_cards)
+  def _name_taken(self, name, ignore=None):
+    key = name.strip().lower()
+    return any(
+      card is not ignore and card["label"].strip().lower() == key
+      for card in self._section_cards
+    )
+
+  def _name_problem(self, card):
+    # The same rules the server applies, caught while typing instead of on save.
+    name = card["label"].strip()
+    if not name:
+      return "Give this section a name."
+    if len(name) > self._limits["label_length"]:
+      return f"Keep section names under {self._limits['label_length']} characters."
+    if self._name_taken(name, ignore=card):
+      return f"Another section is already called {name}."
+    return None
 
   def _on_select_section(self, index, **event_args):
     self._select_section(self._section_cards[index])
@@ -256,13 +275,11 @@ class MainForm(MainFormTemplate):
     name = (self.new_section_box.text or "").strip()
     if not name:
       return
-    if len(name) > self._limits["label_length"]:
-      self._show_error(f"Keep each section name under {self._limits['label_length']} characters.")
-      return
-    if self._name_taken(name):
-      self._show_error(f"There's already a section called {name}.")
-      return
     card = {"table_key": None, "label": name, "row_labels_text": "", "column_labels_text": ""}
+    problem = self._name_problem(card)
+    if problem:
+      self._show_error(problem)
+      return
     self._section_cards.append(card)
     self.new_section_box.text = ""
     self._select_section(card)
@@ -276,10 +293,11 @@ class MainForm(MainFormTemplate):
     self._render_section_list()
 
   def _clone_name(self, label):
+    base = label.strip() or "Section"
     copy_number = 1
     while True:
       suffix = " copy" if copy_number == 1 else f" copy {copy_number}"
-      name = label[:self._limits["label_length"] - len(suffix)] + suffix
+      name = base[:self._limits["label_length"] - len(suffix)] + suffix
       if not self._name_taken(name):
         return name
       copy_number += 1
@@ -454,7 +472,6 @@ class MainForm(MainFormTemplate):
 
   @handle("section_name_box", "change")
   def section_name_box_change(self, **event_args):
-    # Empty or repeated names are left for the server to refuse on save.
     self._active_card["label"] = (self.section_name_box.text or "").strip()
     self._render_section_list()
 
@@ -473,6 +490,14 @@ class MainForm(MainFormTemplate):
     self._save_setup()
 
   def _save_setup(self):
+    # Naming problems are already flagged; open the first one rather than
+    # making a server call that can only refuse.
+    for card in self._section_cards:
+      problem = self._name_problem(card)
+      if problem:
+        self._select_section(card)
+        self._show_error(problem)
+        return
     self.edited_status_button.enabled = False
     self.cancel_setup_button.enabled = False
     try:

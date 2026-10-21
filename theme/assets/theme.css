@@ -717,6 +717,13 @@ input.anvil-role-matrix-quantity {
   margin-bottom: 16px;
 }
 
+.anvil-role-field-error {
+  display: block;
+  margin-top: 4px;
+  color: #b3261e;
+  font-size: 13px;
+}
+
 .section-editor .setup-field textarea.anvil-text-area {
   min-height: 110px;
 }
