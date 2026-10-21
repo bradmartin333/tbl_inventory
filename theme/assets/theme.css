@@ -307,20 +307,11 @@ textarea.anvil-text-area:disabled {
   font-size: 22px;
 }
 
-.setup-actions,
 .guided-control {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   gap: 10px;
-}
-
-.setup-actions {
-  justify-content: flex-end;
-  margin-top: 16px;
-}
-
-.guided-control {
-  flex-wrap: wrap;
 }
 
 .guided-quick-quantities {
@@ -614,6 +605,12 @@ input.anvil-role-matrix-quantity {
 
 .customize-header .workspace-panel-heading {
   margin: 0;
+}
+
+.customize-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .anvil-role-edited-status > button:disabled,

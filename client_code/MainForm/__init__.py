@@ -238,7 +238,8 @@ class MainForm(MainFormTemplate):
     edited = self._setup_signature() != self._saved_setup
     self.edited_status_button.text = "Edited · Save now" if edited else "No unsaved changes"
     self.edited_status_button.enabled = edited
-    self.save_setup_button.enabled = edited
+    # With nothing to throw away, the tabs already lead out of Customize.
+    self.cancel_setup_button.visible = edited
 
   def _name_taken(self, name):
     return any(card["label"].lower() == name.lower() for card in self._section_cards)
@@ -461,23 +462,20 @@ class MainForm(MainFormTemplate):
     self._active_card["column_labels_text"] = self.column_labels_area.text
     self._render_section_list()
 
-  @handle("save_setup_button", "click")
-  def save_setup_button_click(self, **event_args):
-    self._save_setup()
-
   @handle("edited_status_button", "click")
   def edited_status_button_click(self, **event_args):
     self._save_setup()
 
   def _save_setup(self):
-    self.save_setup_button.enabled = False
     self.edited_status_button.enabled = False
+    self.cancel_setup_button.enabled = False
     try:
       result = anvil.server.call(
         "save_inventory_configuration",
         self._section_cards,
       )
     finally:
+      self.cancel_setup_button.enabled = True
       self._show_edited_state()
 
     if not result["ok"]:

@@ -53,7 +53,10 @@
         <anvil-component type="ColumnPanel" name="table_editor_panel" prop:role="workspace-panel">
           <div class="customize-header">
               <h2 class="workspace-panel-heading">Customize the grid</h2>
-              <anvil-component type="Button" name="edited_status_button" prop:role="edited-status" prop:spacing_above="none" prop:spacing_below="none"></anvil-component>
+              <div class="customize-actions">
+                  <anvil-component type="Button" name="cancel_setup_button" prop:text="Cancel" prop:role="secondary-button" prop:spacing_above="none" prop:spacing_below="none"></anvil-component>
+                  <anvil-component type="Button" name="edited_status_button" prop:role="edited-status" prop:spacing_above="none" prop:spacing_below="none"></anvil-component>
+              </div>
           </div>
           <div class="setup-field setup-sections-field">
               <label>Sections</label>
@@ -92,10 +95,6 @@ Large containers"></anvil-component>
                       </label>
                   </div>
               </div>
-          </div>
-          <div class="setup-actions">
-              <anvil-component type="Button" name="cancel_setup_button" prop:text="Cancel" prop:role="secondary-button"></anvil-component>
-              <anvil-component type="Button" name="save_setup_button" prop:text="Save table setup"></anvil-component>
           </div>
         </anvil-component>
     
