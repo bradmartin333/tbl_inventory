@@ -135,6 +135,12 @@ textarea.anvil-text-area:disabled {
   border-radius: 8px;
 }
 
+/* Anvil focuses this shell when a dialog opens. With no click first, as on
+   the login dialog, the browser rings it like a second border. */
+.anvil-modal-dialog:focus {
+  outline: none;
+}
+
 .anvil-modal-header {
   padding: 24px 24px 16px;
   border-bottom: 1px solid var(--blank-border);
