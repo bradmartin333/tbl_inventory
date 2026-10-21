@@ -14,15 +14,23 @@ color_scheme:
   - {color: '#edf3ec', name: Surface Muted}
 roles:
 - components: [Button]
+  name: edited-status
+- components: [Button]
   name: refresh-button
 - components: [Button]
   name: secondary-button
+- components: [Button]
+  name: section-list-item
+- components: [Button]
+  name: section-toggle
 - components: [Button]
   name: workspace-tab
 - components: [ColumnPanel]
   name: workspace-panel
 - components: [Label]
   name: cell-latest-meta
+- components: [Label]
+  name: field-error
 - components: [Label]
   name: current-datetime
 - components: [Label]
@@ -34,9 +42,13 @@ roles:
 - components: [Label]
   name: wizard-target
 - components: [RepeatingPanel]
+  name: grid-sections
+- components: [RepeatingPanel]
   name: matrix-column-headers
 - components: [RepeatingPanel]
   name: matrix-row-cells
+- components: [RepeatingPanel]
+  name: section-list
 - components: [TextBox]
   name: matrix-quantity
 - components: [TextBox]
