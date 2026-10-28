@@ -614,7 +614,7 @@ def get_section_totals(table_key, days):
     "ok": True,
     "dates": [day.strftime("%Y-%m-%d") for day in dates],
     "series": [
-      {"label": column["label"], "totals": totals[column["column_key"]]}
+      {"column_key": column["column_key"], "label": column["label"], "totals": totals[column["column_key"]]}
       for column in columns
     ],
   }

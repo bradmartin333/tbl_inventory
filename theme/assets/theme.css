@@ -767,23 +767,18 @@ input.anvil-role-matrix-quantity {
 
 /* Analytics */
 
-.analytics-header {
+.analytics-selection {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.analytics-header .workspace-panel-heading {
-  margin: 0;
+  gap: 12px;
 }
 
 .analytics-picker {
   display: flex;
+  flex: 1 1 200px;
   flex-direction: column;
   gap: 6px;
-  min-width: min(240px, 100%);
+  max-width: 320px;
   font-size: 13px;
   font-weight: 700;
 }
@@ -792,6 +787,12 @@ input.anvil-role-matrix-quantity {
   margin-top: 20px;
   padding-top: 20px;
   border-top: 1px solid var(--blank-border);
+}
+
+.analytics-card-first {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
 }
 
 .analytics-card h3 {
@@ -1071,5 +1072,28 @@ input.anvil-role-par-input {
     min-height: 32px;
     padding: 2px 4px;
     font-size: 16px;
+  }
+
+  /* The state word takes its own short line, so it never pushes the
+     initials and date out of a narrow cell. */
+  .matrix-cell.is-below-par .anvil-role-cell-latest-meta::before,
+  .matrix-cell.is-overdue .anvil-role-cell-latest-meta::before {
+    display: block;
+  }
+
+  .matrix-cell.is-below-par .anvil-role-cell-latest-meta::before {
+    content: "Low";
+  }
+
+  .matrix-cell.is-overdue .anvil-role-cell-latest-meta::before {
+    content: "Due";
+  }
+
+  .matrix-cell.is-below-par.is-overdue .anvil-role-cell-latest-meta::before {
+    content: "Low/Due";
+  }
+
+  .analytics-picker {
+    max-width: none;
   }
 }

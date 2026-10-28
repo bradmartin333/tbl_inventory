@@ -350,7 +350,7 @@ class SectionTotalsTest(ServerTest):
     self.assertEqual(len(result["dates"]), 30)
     self.assertEqual(result["dates"][-1], datetime.now().date().strftime("%Y-%m-%d"))
     qty, cases = result["series"]
-    self.assertEqual((qty["label"], cases["label"]), ("Qty", "Cases"))
+    self.assertEqual((qty["column_key"], qty["label"], cases["label"]), ("A-c0", "Qty", "Cases"))
     self.assertEqual(qty["totals"], [None] * 19 + [3] * 5 + [10] * 3 + [14] * 3)
     self.assertEqual(cases["totals"], [14] * 30)
 

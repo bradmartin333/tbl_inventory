@@ -17,15 +17,14 @@ TOTALS_FAILED = {"ok": False, "message": "The chart didn't load. Check your conn
 # What a saved par level sends back about its cell.
 PAR_FIELDS = ("par_text", "days_text", "below_par", "overdue", "alert_text")
 TOTALS_RANGES = [("Last 30 days", 30), ("Last 90 days", 90), ("Last year", 365)]
-# One fixed colour per column position, checked for colour-blind separation.
-# A section has at most five columns, so these never repeat.
-SERIES_COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"]
+# The chart draws one column at a time, so one line colour does.
+TOTALS_COLOR = "#2a78d6"
 TOTALS_LAYOUT = {
   "margin": {"l": 44, "r": 12, "t": 8, "b": 36},
   "hovermode": "x unified",
-  "legend": {"orientation": "h", "x": 0, "y": -0.18},
   "paper_bgcolor": "rgba(0,0,0,0)",
   "plot_bgcolor": "rgba(0,0,0,0)",
+  "showlegend": False,
   "font": {"color": "#6b655b", "size": 12},
   "xaxis": {"type": "date", "showgrid": False, "linecolor": "#dcd6ca", "fixedrange": True},
   "yaxis": {"rangemode": "tozero", "gridcolor": "#efece5", "zeroline": False, "fixedrange": True},
@@ -61,7 +60,8 @@ class MainForm(MainFormTemplate):
     # Charts already fetched, by (section, days). Any new count empties it.
     self._totals_cache = {}
     self._analytics_table_key = None
-    self._par_column_key = None
+    # The column the par levels and chart show, within the Analytics section.
+    self._column_key = None
     # Set when a par change has to show in the grid; it's rebuilt on return.
     self._grid_needs_rebuild = False
     self.range_dropdown.items = TOTALS_RANGES
@@ -267,17 +267,15 @@ class MainForm(MainFormTemplate):
   def _render_section_analytics(self):
     columns = self._analytics_table()["columns"]
     keys = [column["column_key"] for column in columns]
-    if self._par_column_key not in keys:
-      self._par_column_key = keys[0] if keys else None
-    self.par_column_dropdown.items = [(column["label"], column["column_key"]) for column in columns]
-    self.par_column_dropdown.selected_value = self._par_column_key
-    # A lone column has nothing to pick between.
-    self.par_column_dropdown.visible = len(columns) > 1
-    self._render_par_levels()
-    self._show_totals()
+    if self._column_key not in keys:
+      self._column_key = keys[0] if keys else None
+    self.column_dropdown.items = [(column["label"], column["column_key"]) for column in columns]
+    self.column_dropdown.selected_value = self._column_key
+    self._render_column()
 
-  def _render_par_levels(self):
-    # One column at a time keeps this to one box pair per item.
+  def _render_column(self):
+    # One column at a time keeps this to one box pair per item, and the chart
+    # to one line.
     self.par_levels_panel.items = [
       {
         "row_key": row["row_key"],
@@ -291,8 +289,9 @@ class MainForm(MainFormTemplate):
       }
       for row in self._analytics_table()["rows"]
       for cell in row["cells"]
-      if cell["column_key"] == self._par_column_key
+      if cell["column_key"] == self._column_key
     ]
+    self._show_totals()
 
   def _snapshot_cell(self, row_key, column_key):
     return next(
@@ -305,7 +304,8 @@ class MainForm(MainFormTemplate):
 
   def _show_totals(self):
     # The chart's history read is the one slow call here, so it runs once per
-    # section and range until a count changes.
+    # section and range until a count changes. It brings every column, so
+    # picking another column redraws from the cache.
     key = (self._analytics_table_key, self.range_dropdown.selected_value)
     totals = self._totals_cache.get(key)
     if totals is None:
@@ -319,36 +319,27 @@ class MainForm(MainFormTemplate):
         return
       self._totals_cache[key] = totals
 
-    traces = []
-    latest = []
-    for index, series in enumerate(totals["series"]):
-      values = [value for value in series["totals"] if value is not None]
-      if not values:
-        continue
-      traces.append({
-        "type": "scatter",
-        "mode": "lines",
-        "name": series["label"],
-        "x": totals["dates"],
-        "y": series["totals"],
-        "connectgaps": False,
-        "hovertemplate": "%{y:g}",
-        # Colour stays with the column's position, so it doesn't shift when
-        # another column has no counts.
-        "line": {"color": SERIES_COLORS[index % len(SERIES_COLORS)], "width": 2},
-      })
-      latest.append(f"{series['label']} {values[-1]:g}")
-    if not traces:
+    series = next(
+      (series for series in totals["series"] if series["column_key"] == self._column_key), None
+    )
+    values = [value for value in series["totals"] if value is not None] if series else []
+    if not values:
       self._show_totals_empty()
       return
-    layout = dict(TOTALS_LAYOUT)
-    # A lone column is named by the summary below; more need a legend.
-    layout["showlegend"] = len(traces) > 1
-    self.totals_plot.layout = layout
-    self.totals_plot.data = traces
+    self.totals_plot.layout = TOTALS_LAYOUT
+    self.totals_plot.data = [{
+      "type": "scatter",
+      "mode": "lines",
+      "name": series["label"],
+      "x": totals["dates"],
+      "y": series["totals"],
+      "connectgaps": False,
+      "hovertemplate": "%{y:g}<extra></extra>",
+      "line": {"color": TOTALS_COLOR, "width": 2},
+    }]
     self.totals_plot.visible = True
-    # Some line colours are pale on white, so the latest totals are in words too.
-    self.totals_summary_label.text = "Latest totals: " + "  ·  ".join(latest)
+    # The column picker and this line name the one series, so there's no legend.
+    self.totals_summary_label.text = f"Latest {series['label']} total: {values[-1]:g}"
     self.totals_summary_label.visible = True
     self.totals_empty_label.visible = False
 
@@ -600,10 +591,10 @@ class MainForm(MainFormTemplate):
   def range_dropdown_change(self, **event_args):
     self._show_totals()
 
-  @handle("par_column_dropdown", "change")
-  def par_column_dropdown_change(self, **event_args):
-    self._par_column_key = self.par_column_dropdown.selected_value
-    self._render_par_levels()
+  @handle("column_dropdown", "change")
+  def column_dropdown_change(self, **event_args):
+    self._column_key = self.column_dropdown.selected_value
+    self._render_column()
 
   @handle("email_tab_button", "click")
   def email_tab_button_click(self, **event_args):

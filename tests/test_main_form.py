@@ -150,17 +150,16 @@ class AnalyticsTest(FormTest):
     self.assertEqual(form.section_dropdown.items, [("Freezer", "A"), ("Fridge", "B")])
     self.assertEqual(form.section_dropdown.selected_value, "A")
     self.assertEqual([row["label"] for row in form.par_levels_panel.items], ["Ice"])
-    self.assertFalse(form.par_column_dropdown.visible)
+    self.assertEqual((form.column_dropdown.items, form.column_dropdown.selected_value), ([("Qty", "A-c0")], "A-c0"))
     self.assertEqual(form.alerts_panel.items, [])
     self.assertTrue(form.alerts_empty_label.visible)
 
-  def test_chart_shows_each_counted_column(self):
+  def test_chart_shows_the_chosen_columns_total(self):
     form = self.form
     self.assertEqual(len(form.totals_plot.data), 1)
     trace = form.totals_plot.data[0]
     self.assertEqual((trace["name"], trace["y"][-1], len(trace["x"])), ("Qty", 7, 30))
-    self.assertFalse(form.totals_plot.layout["showlegend"])
-    self.assertEqual(form.totals_summary_label.text, "Latest totals: Qty 7")
+    self.assertEqual(form.totals_summary_label.text, "Latest Qty total: 7")
     self.assertFalse(form.totals_empty_label.visible)
 
   def test_chart_with_no_counts_says_so(self):
@@ -182,15 +181,14 @@ class AnalyticsTest(FormTest):
     form.section_dropdown.selected_value = "B"
     form.section_dropdown_change()
     self.assertEqual(state.calls, [("get_section_totals", "B", 30)])
-    self.assertEqual(len(form.totals_plot.data), 2)
-    self.assertTrue(form.totals_plot.layout["showlegend"])
-    self.assertTrue(form.par_column_dropdown.visible)
-    self.assertEqual(form.par_column_dropdown.items, [("Qty", "B-c0"), ("Cases", "B-c1")])
+    self.assertEqual(form.column_dropdown.items, [("Qty", "B-c0"), ("Cases", "B-c1")])
+    self.assertEqual(form.totals_summary_label.text, "Latest Qty total: 14")
     state.calls.clear()
-    form.par_column_dropdown.selected_value = "B-c1"
-    form.par_column_dropdown_change()
+    form.column_dropdown.selected_value = "B-c1"
+    form.column_dropdown_change()
     self.assertEqual(state.calls, [])
     self.assertEqual([(r["label"], r["column_key"]) for r in form.par_levels_panel.items], [("Milk", "B-c1"), ("Eggs", "B-c1")])
+    self.assertEqual(form.totals_plot.data[0]["name"], "Cases")
     form.range_dropdown.selected_value = 90
     form.range_dropdown_change()
     self.assertEqual(state.calls, [("get_section_totals", "B", 90)])
