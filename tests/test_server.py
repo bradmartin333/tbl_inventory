@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, time, timedelta
 import unittest
 
 from tests.support import add_section, app_tables, load_server, state
@@ -240,6 +240,142 @@ class SaveGridCellTest(ServerTest):
   def test_initials_are_tidied(self):
     state.user["initials"] = " bm "
     self.assertEqual(inv.get_inventory_grid()["initials"], "BM")
+
+
+def days_ago(days):
+  # Noon, so a test never lands on a day boundary.
+  return datetime.combine(datetime.now().date() - timedelta(days=days), time(12))
+
+
+def log(row_key, column_key, quantity, previous, days, table_key="A"):
+  app_tables.inventory_history.add_row(
+    entry_id=f"{row_key}-{days}", table_key=table_key, row_key=row_key, column_key=column_key,
+    quantity=quantity, previous_quantity=previous, entered_at=days_ago(days),
+  )
+
+
+class SaveParLevelTest(ServerTest):
+  def setUp(self):
+    super().setUp()
+    add_section("A", "Freezer", rows=("Ice", "Peas"))
+
+  def snapshot_cell(self, row=0):
+    return inv.get_inventory_grid()["tables"][0]["rows"][row]["cells"][0]
+
+  def test_par_shows_in_the_snapshot_with_its_flags(self):
+    result = inv.save_par_level("A-r0", "A-c0", " 10 ", "7")
+    self.assertEqual(result, {
+      "ok": True, "par_text": "10", "days_text": "7", "below_par": True, "overdue": True,
+      "alert_text": "Low: 7 on hand, par 10 · Due: never counted, every 7 days",
+    })
+    cell = self.snapshot_cell()
+    self.assertEqual((cell["par_text"], cell["days_text"], cell["below_par"]), ("10", "7", True))
+    other = self.snapshot_cell(row=1)
+    self.assertEqual((other["par_text"], other["below_par"], other["overdue"], other["alert_text"]), ("", False, False, ""))
+
+  def test_at_par_and_recently_counted_is_fine(self):
+    app_tables.inventory_cells.get(row_key="A-r0", column_key="A-c0")["entered_at"] = days_ago(3)
+    result = inv.save_par_level("A-r0", "A-c0", "7", "7")
+    self.assertEqual((result["below_par"], result["overdue"], result["alert_text"]), (False, False, ""))
+
+  def test_overdue_says_how_long_it_has_been(self):
+    app_tables.inventory_cells.get(row_key="A-r0", column_key="A-c0")["entered_at"] = days_ago(10)
+    result = inv.save_par_level("A-r0", "A-c0", "", "1")
+    self.assertEqual(result["alert_text"], "Due: last counted 10 days ago, every 1 day")
+
+  def test_uncounted_cell_keeps_par_then_tidies_up(self):
+    app_tables.inventory_cells.get(row_key="A-r0", column_key="A-c0").delete()
+    inv.save_par_level("A-r0", "A-c0", "2", "")
+    cell = self.snapshot_cell()
+    self.assertEqual((cell["entry_quantity"], cell["latest_display"], cell["below_par"]), ("0", "Not entered", True))
+    inv.save_par_level("A-r0", "A-c0", " ", "")
+    self.assertIsNone(app_tables.inventory_cells.get(row_key="A-r0", column_key="A-c0"))
+
+  def test_clearing_a_counted_cell_keeps_its_count(self):
+    inv.save_par_level("A-r0", "A-c0", "2", "3")
+    inv.save_par_level("A-r0", "A-c0", "", "")
+    cell = app_tables.inventory_cells.get(row_key="A-r0", column_key="A-c0")
+    self.assertEqual((cell["quantity"], cell["par_quantity"], cell["max_days"]), (7, None, None))
+
+  def test_bad_levels_are_refused_without_writing(self):
+    cases = [
+      ("-1", "", "Enter a par of zero or more for Ice · Qty"),
+      ("lots", "", "Enter a par of zero or more"),
+      ("", "0", "Enter 1–365 whole days between counts for Ice · Qty"),
+      ("", "1.5", "whole days"),
+      ("", "366", "whole days"),
+      ("", "soon", "whole days"),
+      ("", True, "whole days"),
+    ]
+    before = app_tables.dump()
+    for par, days, message in cases:
+      with self.subTest(par=par, days=days):
+        result = inv.save_par_level("A-r0", "A-c0", par, days)
+        self.assertFalse(result["ok"])
+        self.assertIn(message, result["message"])
+    for row_key, column_key in [("gone", "A-c0"), ("A-r0", None)]:
+      self.assertEqual(inv.save_par_level(row_key, column_key, "1", ""), {"ok": False, "message": inv.STALE_GRID_MESSAGE})
+    self.assertEqual(app_tables.dump(), before)
+
+  def test_a_count_keeps_par_and_updates_the_flags(self):
+    inv.save_par_level("A-r0", "A-c0", "10", "7")
+    result = inv.save_grid_cell("A-r0", "A-c0", "12")
+    self.assertEqual((result["below_par"], result["overdue"], result["par_text"]), (False, False, "10"))
+    cell = app_tables.inventory_cells.get(row_key="A-r0", column_key="A-c0")
+    self.assertEqual((cell["quantity"], cell["par_quantity"], cell["max_days"]), (12, 10, 7))
+    self.assertEqual(app_tables.inventory_history.rows[-1]["previous_quantity"], 7)
+
+  def test_removing_a_row_in_customize_takes_its_par(self):
+    inv.save_par_level("A-r0", "A-c0", "10", "")
+    save([card("A", "Freezer", rows="Peas")])
+    self.assertEqual([c for c in app_tables.inventory_cells.rows if c["par_quantity"] is not None], [])
+
+
+class SectionTotalsTest(ServerTest):
+  def setUp(self):
+    super().setUp()
+    add_section("A", "Freezer", rows=("Ice", "Peas"), cols=("Qty", "Cases"))
+
+  def test_steps_back_from_todays_counts(self):
+    # Ice: 3 ten days ago, 7 two days ago. Peas: 7 five days ago. Cases has
+    # no history, so today's counts held all month.
+    log("A-r0", "A-c0", 3, None, 10)
+    log("A-r0", "A-c0", 7, 3, 2)
+    log("A-r1", "A-c0", 7, None, 5)
+    # Outside the window, and a row that's since been deleted: neither counts.
+    log("A-r0", "A-c0", 99, 50, 40)
+    log("gone", "A-c0", 99, 50, 1)
+    result = inv.get_section_totals("A", 30)
+    self.assertTrue(result["ok"])
+    self.assertEqual(len(result["dates"]), 30)
+    self.assertEqual(result["dates"][-1], datetime.now().date().strftime("%Y-%m-%d"))
+    qty, cases = result["series"]
+    self.assertEqual((qty["label"], cases["label"]), ("Qty", "Cases"))
+    self.assertEqual(qty["totals"], [None] * 19 + [3] * 5 + [10] * 3 + [14] * 3)
+    self.assertEqual(cases["totals"], [14] * 30)
+
+  def test_reads_five_times_and_only_the_window(self):
+    log("A-r0", "A-c0", 3, None, 40)
+    app_tables.reset_reads()
+    result = inv.get_section_totals("A", 30)
+    self.assertEqual(sum(app_tables.reads().values()), 5)
+    self.assertEqual(result["series"][0]["totals"], [14] * 30)
+
+  def test_bad_requests_are_refused(self):
+    for table_key, days in [("A", 7), ("A", "30"), ("gone", 30), (None, 30)]:
+      with self.subTest(table_key=table_key, days=days):
+        self.assertEqual(inv.get_section_totals(table_key, days), {"ok": False, "message": inv.STALE_GRID_MESSAGE})
+
+
+class LoadBudgetTest(ServerTest):
+  def test_grid_load_still_reads_four_times(self):
+    add_section("A", "Freezer")
+    inv.save_par_level("A-r0", "A-c0", "10", "7")
+    app_tables.reset_reads()
+    inv.get_inventory_grid()
+    self.assertEqual(app_tables.reads(), {
+      "inventory_tables": 1, "inventory_rows": 1, "inventory_columns": 1, "inventory_cells": 1,
+    })
 
 
 class FormatTest(unittest.TestCase):

@@ -59,20 +59,43 @@ class Row(dict):
     self._table.rows = [row for row in self._table.rows if row is not self]
 
 
+class Matcher:
+  # What anvil.tables.query's any_of() and the like stand for in a search.
+  def __init__(self, test):
+    self.test = test
+
+
+def _matches(value, wanted):
+  return wanted.test(value) if isinstance(wanted, Matcher) else value == wanted
+
+
+class FetchOnly:
+  def __init__(self, *columns):
+    self.columns = columns
+
+
 class Table:
   def __init__(self, name, columns):
     self.name = name
     self.columns = columns
     self.rows = []
+    # Searches and gets since the last reset: each is a slow trip in Anvil.
+    self.reads = 0
 
   def check(self, column):
     if column not in self.columns:
       raise KeyError(f"{self.name} has no column {column!r}")
 
-  def search(self, **filters):
+  def search(self, *options, **filters):
+    self.reads += 1
+    for option in options:
+      if not isinstance(option, FetchOnly):
+        raise TypeError(f"unsupported search option {option!r}")
+      for column in option.columns:
+        self.check(column)
     for column in filters:
       self.check(column)
-    return [row for row in self.rows if all(row.get(k) == v for k, v in filters.items())]
+    return [row for row in self.rows if all(_matches(row.get(k), v) for k, v in filters.items())]
 
   def get(self, **filters):
     found = self.search(**filters)
@@ -99,6 +122,15 @@ class AppTables:
   def clear(self):
     for table in self._tables.values():
       table.rows = []
+    self.reset_reads()
+
+  def reset_reads(self):
+    for table in self._tables.values():
+      table.reads = 0
+
+  def reads(self):
+    # {table name: reads} for the tables read since reset_reads().
+    return {name: table.reads for name, table in self._tables.items() if table.reads}
 
   def dump(self):
     # Everything stored, for checking a refused save wrote nothing.
@@ -345,12 +377,20 @@ def _install():
   tables.app_tables = app_tables
   tables.in_transaction = lambda function: function
 
+  query = types.ModuleType("anvil.tables.query")
+  query.any_of = lambda *values: Matcher(lambda value: value in values)
+  query.greater_than_or_equal_to = lambda bound: Matcher(
+    lambda value: value is not None and value >= bound
+  )
+  query.fetch_only = FetchOnly
+  tables.query = query
+
   js = types.ModuleType("anvil.js")
   # load_form points each form at the current test's window.
   js.window = None
 
   anvil.server, anvil.users, anvil.tables, anvil.js = server, users, tables, js
-  for module in (anvil, server, users, tables, js):
+  for module in (anvil, server, users, tables, query, js):
     sys.modules[module.__name__] = module
 
   # The app package, laid out as the repo's own __init__.py lays it out.

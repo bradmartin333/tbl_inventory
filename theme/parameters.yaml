@@ -28,9 +28,21 @@ roles:
 - components: [ColumnPanel]
   name: workspace-panel
 - components: [Label]
+  name: analytics-empty
+- components: [Label]
+  name: analytics-summary
+- components: [Label]
   name: cell-latest-meta
 - components: [Label]
   name: field-error
+- components: [Label]
+  name: par-alert-cell
+- components: [Label]
+  name: par-alert-detail
+- components: [Label]
+  name: par-item
+- components: [Label]
+  name: par-on-hand
 - components: [Label]
   name: current-datetime
 - components: [Label]
@@ -48,8 +60,14 @@ roles:
 - components: [RepeatingPanel]
   name: matrix-row-cells
 - components: [RepeatingPanel]
+  name: par-alerts
+- components: [RepeatingPanel]
+  name: par-levels
+- components: [RepeatingPanel]
   name: section-list
 - components: [TextBox]
   name: matrix-quantity
+- components: [TextBox]
+  name: par-input
 - components: [TextBox]
   name: wizard-quantity

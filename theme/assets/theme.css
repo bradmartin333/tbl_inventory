@@ -12,6 +12,11 @@
   --blank-control-disabled: %color:Control Disabled%;
   --blank-surface-muted: %color:Surface Muted%;
   --anvil-banner-height: %anvil-banner-height%;
+  /* On-par states. Each also shows a word ("Low", "Due"), never colour alone. */
+  --par-low: #b3261e;
+  --par-low-bg: #fbeceb;
+  --par-due: #8a5a00;
+  --par-due-bg: #fdf5e3;
 }
 
 /* Base */
@@ -728,6 +733,178 @@ input.anvil-role-matrix-quantity {
   min-height: 110px;
 }
 
+/* On-par flags in the grid */
+
+.matrix-cell.is-below-par {
+  background: var(--par-low-bg);
+  box-shadow: inset 3px 0 0 var(--par-low);
+}
+
+.matrix-cell.is-overdue {
+  outline: 1px dashed var(--par-due);
+  outline-offset: -3px;
+}
+
+.matrix-cell.is-below-par .anvil-role-cell-latest-meta::before,
+.matrix-cell.is-overdue .anvil-role-cell-latest-meta::before {
+  font-weight: 700;
+}
+
+.matrix-cell.is-below-par .anvil-role-cell-latest-meta::before {
+  content: "Low · ";
+  color: var(--par-low);
+}
+
+.matrix-cell.is-overdue .anvil-role-cell-latest-meta::before {
+  content: "Due · ";
+  color: var(--par-due);
+}
+
+.matrix-cell.is-below-par.is-overdue .anvil-role-cell-latest-meta::before {
+  content: "Low · Due · ";
+  color: var(--par-low);
+}
+
+/* Analytics */
+
+.analytics-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.analytics-header .workspace-panel-heading {
+  margin: 0;
+}
+
+.analytics-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: min(240px, 100%);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.analytics-card {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--blank-border);
+}
+
+.analytics-card h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.analytics-card-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.analytics-card > .setup-hint {
+  margin-bottom: 12px;
+}
+
+.anvil-role-analytics-empty {
+  padding: 8px 0;
+  color: var(--blank-muted);
+  font-size: 14px;
+}
+
+.anvil-role-analytics-summary {
+  margin-top: 6px;
+  color: var(--blank-text);
+  font-size: 13px;
+}
+
+.anvil-role-par-alerts > div,
+.anvil-role-par-levels > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.anvil-role-par-alerts > div {
+  gap: 8px;
+}
+
+.par-alert-item {
+  padding: 8px 12px;
+  border-left: 4px solid var(--par-due);
+  border-radius: 6px;
+  background: var(--par-due-bg);
+}
+
+.par-alert-item.is-below-par {
+  border-left-color: var(--par-low);
+  background: var(--par-low-bg);
+}
+
+.anvil-role-par-alert-cell {
+  font-weight: 700;
+}
+
+.anvil-role-par-alert-detail {
+  color: var(--blank-text);
+  font-size: 13px;
+}
+
+.par-alert-item .anvil-label,
+.par-level-row .anvil-label {
+  padding: 0;
+}
+
+.par-level-heading,
+.par-level-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px 88px 88px;
+  align-items: center;
+  gap: 8px;
+}
+
+.par-level-heading {
+  padding: 0 0 6px;
+  border-bottom: 2px solid var(--blank-text);
+  color: var(--blank-primary-dark);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.par-level-heading > span:not(:first-child) {
+  text-align: center;
+}
+
+.par-level-row {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--blank-border);
+}
+
+.anvil-role-par-item {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.anvil-role-par-on-hand {
+  text-align: center;
+}
+
+.par-level-row.is-below-par .anvil-role-par-on-hand {
+  color: var(--par-low);
+  font-weight: 700;
+}
+
+input.anvil-role-par-input {
+  width: 100%;
+  height: 36px;
+  min-height: 36px;
+  text-align: center;
+}
+
 @media (max-width: 760px) {
   .page-main {
     width: calc(100% - 16px);
@@ -877,5 +1054,22 @@ input.anvil-role-matrix-quantity {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .par-level-heading,
+  .par-level-row {
+    grid-template-columns: minmax(0, 1fr) 52px 64px 64px;
+    gap: 6px;
+  }
+
+  .par-level-heading {
+    font-size: 12px;
+  }
+
+  input.anvil-role-par-input {
+    height: 32px;
+    min-height: 32px;
+    padding: 2px 4px;
+    font-size: 16px;
   }
 }

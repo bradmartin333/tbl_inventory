@@ -3,6 +3,14 @@ import unittest
 from tests.support import Component, load_form, state
 
 
+def saved_count(entry_quantity, latest_display, below_par=False, overdue=False):
+  # What save_grid_cell sends back.
+  return {
+    "entry_quantity": entry_quantity, "latest_display": latest_display, "par_text": "2",
+    "days_text": "", "below_par": below_par, "overdue": overdue, "alert_text": "",
+  }
+
+
 def parent_recording(event):
   # A parent panel that records what its child raises.
   parent = Component()
@@ -15,7 +23,10 @@ class GridCellTest(unittest.TestCase):
   def setUp(self):
     state.reset()
     module = load_form("MainForm", "GridCell")
-    item = {"entry_quantity": "3", "latest_display": "BM · 03/04", "editable": True}
+    item = {
+      "entry_quantity": "3", "latest_display": "BM · 03/04", "editable": True,
+      "below_par": False, "overdue": True,
+    }
     self.cell = module.GridCell(item=item)
     self.cell.parent, self.raised = parent_recording("x-save-cell")
 
@@ -39,7 +50,7 @@ class GridCellTest(unittest.TestCase):
     self.assertEqual(self.raised, [{"cell": self.cell, "quantity": "4"}])
 
   def test_saved_value_becomes_the_new_baseline(self):
-    self.cell.show_saved("4", "BM · 03/05")
+    self.cell.show_saved(saved_count("4", "BM · 03/05"))
     self.assertEqual(self.cell.item["latest_display"], "BM · 03/05")
     self.leave_with("4")
     self.assertEqual(self.raised, [])
@@ -48,8 +59,16 @@ class GridCellTest(unittest.TestCase):
 
   def test_view_only_cells_are_disabled(self):
     module = load_form("MainForm", "GridCell")
-    cell = module.GridCell(item={"entry_quantity": "3", "latest_display": "", "editable": False})
+    cell = module.GridCell(item={
+      "entry_quantity": "3", "latest_display": "", "editable": False, "below_par": False, "overdue": False,
+    })
     self.assertFalse(cell.quantity_box.enabled)
+
+  def test_par_flags_mark_the_cell_and_follow_a_save(self):
+    classes = self.cell.dom_nodes["cell"].classList.names
+    self.assertEqual(classes, {"is-overdue"})
+    self.cell.show_saved(saved_count("1", "BM · 03/05", below_par=True))
+    self.assertEqual(classes, {"is-below-par"})
 
 
 class GridSectionTest(unittest.TestCase):
@@ -109,6 +128,49 @@ class SectionListItemTest(unittest.TestCase):
     item.parent, raised = parent_recording("x-select-section")
     item.select_button_click()
     self.assertEqual(raised, [{"index": 2}])
+
+
+class ParLevelRowTest(unittest.TestCase):
+  def setUp(self):
+    module = load_form("MainForm", "ParLevelRow")
+    self.row = module.ParLevelRow(item={
+      "row_key": "r", "column_key": "c", "label": "Ice", "entry_quantity": "1",
+      "par_text": "4", "days_text": "", "below_par": True, "overdue": False,
+    })
+    self.row.parent, self.raised = parent_recording("x-save-par")
+
+  def enter(self, par, days):
+    self.row.par_box.text = par
+    self.row.days_box.text = days
+
+  def test_untouched_boxes_save_nothing(self):
+    self.enter(" 4 ", "")
+    self.row.par_box_lost_focus()
+    self.row.days_box_lost_focus()
+    self.assertEqual(self.raised, [])
+
+  def test_either_box_saves_the_pair(self):
+    self.enter("4", " 7 ")
+    self.row.days_box_pressed_enter()
+    self.assertEqual(self.raised, [{"row": self.row, "par": "4", "days": "7"}])
+
+  def test_saved_values_become_the_baseline_and_revert_restores_them(self):
+    self.assertIn("is-below-par", self.row.dom_nodes["row"].classList.names)
+    self.row.show_saved({"par_text": "", "days_text": "7", "below_par": False, "overdue": True})
+    self.assertEqual(self.row.dom_nodes["row"].classList.names, {"is-overdue"})
+    self.enter("", "7")
+    self.row.par_box_lost_focus()
+    self.assertEqual(self.raised, [])
+    self.row.item["days_text"] = "9"
+    self.row.revert()
+    self.assertEqual((self.row.item["par_text"], self.row.item["days_text"]), ("", "7"))
+
+
+class ParAlertItemTest(unittest.TestCase):
+  def test_marks_the_kind_of_alert(self):
+    module = load_form("MainForm", "ParAlertItem")
+    item = module.ParAlertItem(item={"label": "Ice", "detail": "Low", "below_par": True, "overdue": True})
+    self.assertEqual(item.dom_nodes["item"].classList.names, {"is-below-par", "is-overdue"})
 
 
 if __name__ == "__main__":

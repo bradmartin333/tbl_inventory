@@ -1,6 +1,7 @@
+import os
 import unittest
 
-from tests.support import Component, Event, add_section, app_tables, load_form, load_server, state
+from tests.support import CLIENT_DIR, Component, Event, add_section, app_tables, load_form, load_server, state
 
 
 inv = load_server()
@@ -16,8 +17,8 @@ class Cell:
   def revert(self):
     self.reverted = True
 
-  def show_saved(self, entry_quantity, latest_display):
-    self.saved = (entry_quantity, latest_display)
+  def show_saved(self, result):
+    self.saved = (result["entry_quantity"], result["latest_display"])
 
 
 def boom(*args, **kwargs):
@@ -117,6 +118,136 @@ class GridTest(FormTest):
     self.form._show_error("second")
     self.assertFalse(first.visible)
     self.assertTrue(self.form._error_notification.visible)
+
+
+class ParRow:
+  # Stands in for a ParLevelRow raising x-save-par.
+  def __init__(self, row_key, column_key):
+    self.item = {"row_key": row_key, "column_key": column_key}
+    self.reverted = False
+    self.saved = None
+
+  def revert(self):
+    self.reverted = True
+
+  def show_saved(self, result):
+    self.saved = result
+
+
+class AnalyticsTest(FormTest):
+  def setUp(self):
+    super().setUp()
+    state.calls.clear()
+    self.form.analytics_tab_button_click()
+
+  def calls(self):
+    return [call for call in state.calls if call[0] != "save_par_level"]
+
+  def test_opens_on_the_grids_section_with_one_call(self):
+    form = self.form
+    self.assertEqual(form._active_tab, "analytics")
+    self.assertEqual(state.calls, [("get_section_totals", "A", 30)])
+    self.assertEqual(form.section_dropdown.items, [("Freezer", "A"), ("Fridge", "B")])
+    self.assertEqual(form.section_dropdown.selected_value, "A")
+    self.assertEqual([row["label"] for row in form.par_levels_panel.items], ["Ice"])
+    self.assertFalse(form.par_column_dropdown.visible)
+    self.assertEqual(form.alerts_panel.items, [])
+    self.assertTrue(form.alerts_empty_label.visible)
+
+  def test_chart_shows_each_counted_column(self):
+    form = self.form
+    self.assertEqual(len(form.totals_plot.data), 1)
+    trace = form.totals_plot.data[0]
+    self.assertEqual((trace["name"], trace["y"][-1], len(trace["x"])), ("Qty", 7, 30))
+    self.assertFalse(form.totals_plot.layout["showlegend"])
+    self.assertEqual(form.totals_summary_label.text, "Latest totals: Qty 7")
+    self.assertFalse(form.totals_empty_label.visible)
+
+  def test_chart_with_no_counts_says_so(self):
+    for cell in list(app_tables.inventory_cells.rows):
+      cell.delete()
+    self.form.refresh_button_click()
+    self.assertFalse(self.form.totals_plot.visible)
+    self.assertTrue(self.form.totals_empty_label.visible)
+
+  def test_reopening_uses_the_cached_chart(self):
+    self.form.grid_tab_button_click()
+    state.calls.clear()
+    self.form.analytics_tab_button_click()
+    self.assertEqual(state.calls, [])
+
+  def test_section_and_range_each_load_once_and_columns_load_nothing(self):
+    form = self.form
+    state.calls.clear()
+    form.section_dropdown.selected_value = "B"
+    form.section_dropdown_change()
+    self.assertEqual(state.calls, [("get_section_totals", "B", 30)])
+    self.assertEqual(len(form.totals_plot.data), 2)
+    self.assertTrue(form.totals_plot.layout["showlegend"])
+    self.assertTrue(form.par_column_dropdown.visible)
+    self.assertEqual(form.par_column_dropdown.items, [("Qty", "B-c0"), ("Cases", "B-c1")])
+    state.calls.clear()
+    form.par_column_dropdown.selected_value = "B-c1"
+    form.par_column_dropdown_change()
+    self.assertEqual(state.calls, [])
+    self.assertEqual([(r["label"], r["column_key"]) for r in form.par_levels_panel.items], [("Milk", "B-c1"), ("Eggs", "B-c1")])
+    form.range_dropdown.selected_value = 90
+    form.range_dropdown_change()
+    self.assertEqual(state.calls, [("get_section_totals", "B", 90)])
+
+  def test_a_new_count_or_refresh_drops_the_cached_chart(self):
+    self.form._save_grid_cell(Cell("A-r0", "A-c0"), "3")
+    state.calls.clear()
+    self.form.range_dropdown_change()
+    self.assertEqual(state.calls, [("get_section_totals", "A", 30)])
+    self.assertEqual(self.form.totals_plot.data[0]["y"][-1], 3)
+    state.calls.clear()
+    self.form.refresh_button_click()
+    self.assertEqual(state.calls, [("get_inventory_grid",), ("get_section_totals", "A", 30)])
+
+  def test_saved_par_shows_in_alerts_and_the_grid_without_a_reload(self):
+    form = self.form
+    row = ParRow("B-r0", "B-c0")
+    form.par_levels_panel.raise_event("x-save-par", row=row, par="10", days="")
+    self.assertEqual(row.saved["par_text"], "10")
+    self.assertEqual(len(form.alerts_panel.items), 1)
+    alert = form.alerts_panel.items[0]
+    self.assertEqual(alert["label"], "Fridge  ·  Milk  ·  Qty")
+    self.assertEqual(alert["detail"], "Low: 7 on hand, par 10")
+    self.assertFalse(form.alerts_empty_label.visible)
+    state.calls.clear()
+    form.grid_tab_button_click()
+    self.assertEqual(state.calls, [])
+    cell = form.tables_panel.items[1]["rows"][0]["cells"][0]
+    self.assertEqual((cell["par_text"], cell["below_par"]), ("10", True))
+    self.assertFalse(form._grid_needs_rebuild)
+
+  def test_refused_or_failed_par_save_reverts_and_warns(self):
+    row = ParRow("A-r0", "A-c0")
+    self.form._save_par_level(row, "lots", "")
+    self.assertTrue(row.reverted)
+    self.assertIn("Enter a par", state.notifications[-1])
+    state.routes["save_par_level"] = boom
+    row = ParRow("A-r0", "A-c0")
+    self.form._save_par_level(row, "3", "")
+    self.assertTrue(row.reverted)
+    self.assertEqual(state.notifications[-1], self.mf.SAVE_FAILED["message"])
+    self.assertFalse(self.form._grid_needs_rebuild)
+
+  def test_failed_chart_warns_and_retries_next_time(self):
+    state.routes["get_section_totals"] = boom
+    self.form.range_dropdown.selected_value = 90
+    self.form.range_dropdown_change()
+    self.assertEqual(state.notifications[-1], self.mf.TOTALS_FAILED["message"])
+    self.assertTrue(self.form.totals_empty_label.visible)
+    del state.routes["get_section_totals"]
+    self.form.range_dropdown_change()
+    self.assertTrue(self.form.totals_plot.visible)
+
+  def test_admin_roles_card_lives_on_the_email_tab(self):
+    with open(os.path.join(CLIENT_DIR, "MainForm", "form_template.html")) as f:
+      html = f.read()
+    self.assertLess(html.index('name="email_panel"'), html.index("Admin roles and permissions"))
 
 
 class CustomizeTest(FormTest):
