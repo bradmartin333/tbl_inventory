@@ -61,6 +61,7 @@ class MainForm(MainFormTemplate):
     self.section_list_panel.add_event_handler("x-select-section", self._on_select_section)
     self._wizard_cells = []
     self._wizard_index = 0
+    self._wizard_confirmed = set()
     self.tables_panel.add_event_handler("x-save-cell", self._save_grid_cell)
     self.par_levels_panel.add_event_handler("x-save-par", self._save_par_level)
     # Charts already fetched, by (section, days). Any new count empties it,
@@ -533,7 +534,21 @@ class MainForm(MainFormTemplate):
       for cell in row["cells"]
     ]
     self._wizard_index = 0
+    self._wizard_confirmed = set()
     self._show_wizard_step()
+
+  def _wizard_cell(self):
+    # Read the latest counts, not this pass's starting copy: a count saved from
+    # the grid meanwhile mustn't be shown stale and then saved back over.
+    table, row, cell = self._wizard_cells[self._wizard_index]
+    for latest_table in self._snapshot["tables"]:
+      for latest_row in latest_table["rows"]:
+        if latest_row["row_key"] != row["row_key"]:
+          continue
+        for latest_cell in latest_row["cells"]:
+          if latest_cell["column_key"] == cell["column_key"]:
+            return latest_table, latest_row, latest_cell
+    return table, row, cell
 
   def _show_wizard_step(self):
     total_steps = len(self._wizard_cells)
@@ -551,7 +566,7 @@ class MainForm(MainFormTemplate):
       self.wizard_target_label.text = "All cells have been reviewed."
       return
 
-    table, row, cell = self._wizard_cells[self._wizard_index]
+    table, row, cell = self._wizard_cell()
     self.wizard_step_label.text = f"Cell {self._wizard_index + 1} of {total_steps}"
     target = f"{row['label']}  ·  {cell['column_label']}"
     if len(self._snapshot["tables"]) > 1:
@@ -562,8 +577,23 @@ class MainForm(MainFormTemplate):
       "Finish" if self._wizard_index == total_steps - 1 else "Next"
     )
 
-  def _save_wizard_step(self, quantity, advance=True):
-    _, row, cell = self._wizard_cells[self._wizard_index]
+  def _move_wizard(self, quantity, step):
+    # Next confirms an unchanged count, so it's logged once per pass; after
+    # that, and for Back and Exit, only an edit is saved. Re-saving an
+    # untouched value would log a duplicate entry under this user's initials.
+    if self._wizard_index < len(self._wizard_cells):
+      _, row, cell = self._wizard_cell()
+      unchanged = (quantity or "") == (cell["entry_quantity"] or "")
+      confirmed = (row["row_key"], cell["column_key"]) in self._wizard_confirmed
+      if not unchanged or (step == 1 and not confirmed):
+        return self._save_wizard_step(quantity, step)
+    if step:
+      self._wizard_index += step
+      self._show_wizard_step()
+    return True
+
+  def _save_wizard_step(self, quantity, step):
+    _, row, cell = self._wizard_cell()
     wizard_buttons = (
       self.wizard_back_button, self.wizard_next_button, self.wizard_zero_button, self.wizard_exit_button,
     )
@@ -587,15 +617,15 @@ class MainForm(MainFormTemplate):
       self._show_error(result["message"])
       return False
 
-    # The wizard keeps its own cell list, so Back shows what was just saved.
+    self._wizard_confirmed.add((row["row_key"], cell["column_key"]))
+    # Holds the new count until the reload brings it in.
     cell["entry_quantity"] = result["entry_quantity"]
-    if not advance:
-      self._load_latest_counts()
-      return True
-
-    # Advance before reloading so the old step's buttons don't linger during the call.
-    self._wizard_index += 1
-    self._show_wizard_step()
+    # Move before reloading: the buttons are live again during the call, so a
+    # second tap must start from the new step, and the old step's buttons
+    # mustn't linger.
+    if step:
+      self._wizard_index += step
+      self._show_wizard_step()
     self._load_latest_counts()
     return True
 
@@ -823,12 +853,12 @@ class MainForm(MainFormTemplate):
 
   @handle("wizard_next_button", "click")
   def wizard_next_button_click(self, **event_args):
-    self._save_wizard_step(self.wizard_quantity_box.text)
+    self._move_wizard(self.wizard_quantity_box.text, 1)
 
   @handle("wizard_zero_button", "click")
   def wizard_zero_button_click(self, **event_args):
     self.wizard_quantity_box.text = "0"
-    self._save_wizard_step("0")
+    self._move_wizard("0", 1)
 
   def _wizard_quantity_value(self):
     try:
@@ -855,27 +885,14 @@ class MainForm(MainFormTemplate):
   def wizard_plus_one_button_click(self, **event_args):
     self._set_wizard_quantity(self._wizard_quantity_value() + 1)
 
-  def _save_wizard_edit(self):
-    # Only save an edit: re-saving an untouched value would log a duplicate
-    # entry under this user's initials.
-    if self._wizard_index >= len(self._wizard_cells):
-      return True
-    _, _, cell = self._wizard_cells[self._wizard_index]
-    quantity = self.wizard_quantity_box.text
-    if (quantity or "") == (cell["entry_quantity"] or ""):
-      return True
-    return self._save_wizard_step(quantity, advance=False)
-
   @handle("wizard_back_button", "click")
   def wizard_back_button_click(self, **event_args):
-    if not self._save_wizard_edit():
-      return
-    self._wizard_index -= 1
-    self._show_wizard_step()
+    if self._wizard_index > 0:
+      self._move_wizard(self.wizard_quantity_box.text, -1)
 
   @handle("wizard_exit_button", "click")
   def wizard_exit_button_click(self, **event_args):
-    if self._save_wizard_edit():
+    if self._move_wizard(self.wizard_quantity_box.text, 0):
       self._set_active_tab("grid")
 
   @handle("wizard_close_button", "click")
