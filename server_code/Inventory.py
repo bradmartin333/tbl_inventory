@@ -1,11 +1,12 @@
 import anvil.users
-from datetime import datetime
+from datetime import datetime, time, timedelta
 import hashlib
 import math
 import uuid
 
 import anvil.server
 from anvil.tables import app_tables, in_transaction
+import anvil.tables.query as q
 
 
 DEFAULT_TABLE = "Inventory"
@@ -19,6 +20,9 @@ MAX_ROWS = 50
 MAX_COLUMNS = 5
 # For section, row and column names alike.
 MAX_LABEL_LENGTH = 60
+MAX_PAR_DAYS = 365
+# The Analytics chart's ranges. History is only ever read inside one of these.
+TOTALS_RANGES = (30, 90, 365)
 STALE_GRID_MESSAGE = "Refresh the table and try again."
 STALE_SETUP_MESSAGE = (
   "Someone else changed the sections since you opened Customize. "
@@ -84,6 +88,81 @@ def _format_latest(cell):
   return f"{cell['entered_by']} · {date_text}"
 
 
+def _is_blank(raw):
+  return raw is None or (isinstance(raw, str) and not raw.strip())
+
+
+def _parse_days(raw_days):
+  # Whole days between counts, for an on-par level.
+  if isinstance(raw_days, bool):
+    return None
+  try:
+    days = float(raw_days)
+  except (TypeError, ValueError):
+    return None
+  if not math.isfinite(days) or days != int(days) or not 1 <= days <= MAX_PAR_DAYS:
+    return None
+  return int(days)
+
+
+def _local(moment):
+  # Anvil hands stored datetimes back with a time zone, and datetime.now() has
+  # none; bring both to the server's clock before comparing them.
+  return moment.astimezone().replace(tzinfo=None) if moment.tzinfo else moment
+
+
+def _days_since(moment):
+  # Calendar days, as people say it: a count saved last night was 1 day ago
+  # this morning, not 0.
+  return (datetime.now().date() - _local(moment).date()).days
+
+
+def _par_flags(cell):
+  # (below par, overdue). An uncounted cell holds 0, just as the grid shows it.
+  if cell is None:
+    return False, False
+  quantity = cell["quantity"] if cell["quantity"] is not None else 0
+  below_par = cell["par_quantity"] is not None and quantity < cell["par_quantity"]
+  overdue = bool(cell["max_days"]) and (
+    not cell["entered_at"] or _days_since(cell["entered_at"]) > cell["max_days"]
+  )
+  return below_par, overdue
+
+
+def _plural(count, word):
+  return f"{count} {word}{'' if count == 1 else 's'}"
+
+
+def _alert_text(cell, below_par, overdue):
+  # The Needs attention line. It names the problem in words, not just a colour.
+  parts = []
+  if below_par:
+    quantity = cell["quantity"] if cell["quantity"] is not None else 0
+    parts.append(
+      f"Low: {_format_quantity(quantity)} on hand, par {_format_quantity(cell['par_quantity'])}"
+    )
+  if overdue:
+    interval = _plural(int(cell["max_days"]), "day")
+    if cell["entered_at"]:
+      days_ago = _days_since(cell["entered_at"])
+      parts.append(f"Due: last counted {_plural(days_ago, 'day')} ago, every {interval}")
+    else:
+      parts.append(f"Due: never counted, every {interval}")
+  return " · ".join(parts)
+
+
+def _par_fields(cell):
+  # What the grid and Analytics need to show and edit a cell's on-par level.
+  below_par, overdue = _par_flags(cell)
+  return {
+    "par_text": _format_quantity(cell["par_quantity"] if cell else None),
+    "days_text": _format_quantity(cell["max_days"] if cell else None),
+    "below_par": below_par,
+    "overdue": overdue,
+    "alert_text": _alert_text(cell, below_par, overdue) if cell else "",
+  }
+
+
 def _parse_quantity(raw_quantity):
   if raw_quantity is None or isinstance(raw_quantity, bool):
     return None
@@ -137,10 +216,27 @@ def activate_account(email):
   return {"ok": True}
 
 
-def _ordered(table):
-  items = _live(table)
+def _ordered(table, **filters):
+  items = _live(table, **filters)
   items.sort(key=lambda item: item["sort_order"] or 0)
   return items
+
+
+def _cell_rank(cell):
+  return _local(cell["entered_at"]) if cell["entered_at"] else datetime.min
+
+
+def _newest_cells(cells):
+  # {(row_key, column_key): cell}. Saves from before they ran in a
+  # transaction could leave two rows for one cell; every reader and writer
+  # uses the most recently counted, so a par level never lands on a row the
+  # grid doesn't show. Saving a count keeps that row the newest.
+  chosen = {}
+  for cell in cells:
+    key = (cell["row_key"], cell["column_key"])
+    if key not in chosen or _cell_rank(cell) > _cell_rank(chosen[key]):
+      chosen[key] = cell
+  return chosen
 
 
 def _setup_version(tables, rows, columns):
@@ -171,15 +267,20 @@ def _build_table(table, rows, columns, saved_cells):
     for column in columns:
       key = (row["row_key"], column["column_key"])
       saved = saved_cells.get(key)
-      row_cells.append({
+      quantity = saved["quantity"] if saved else None
+      cell = {
         "row_key": row["row_key"],
         "column_key": column["column_key"],
         "column_label": column["label"],
         # A cell nobody has counted yet starts at 0. Nothing is written until
-        # someone saves, so no history entry is invented for it.
-        "entry_quantity": _format_quantity(saved["quantity"] if saved else 0),
+        # someone saves, so no history entry is invented for it. A cell with
+        # only an on-par level set has a row but still no count.
+        "entry_quantity": _format_quantity(0 if quantity is None else quantity),
         "latest_display": _format_latest(saved),
-      })
+      }
+      # Par lives on the cell row already read here, so it costs no extra search.
+      cell.update(_par_fields(saved))
+      row_cells.append(cell)
     grid_rows.append({
       "row_key": row["row_key"],
       "label": row["label"],
@@ -212,10 +313,7 @@ def get_inventory_grid():
   columns = _ordered(app_tables.inventory_columns)
   rows_by_table = _group_by_table(rows)
   columns_by_table = _group_by_table(columns)
-  saved_cells = {
-    (cell["row_key"], cell["column_key"]): cell
-    for cell in app_tables.inventory_cells.search()
-  }
+  saved_cells = _newest_cells(app_tables.inventory_cells.search())
 
   return {
     "initials": _user_initials(anvil.users.get_user()),
@@ -362,6 +460,27 @@ def save_inventory_configuration(sections, setup_version=None):
   return {"ok": True}
 
 
+def _cell_target(row_key, column_key):
+  # (section, row, column) for a live cell, or None when the grid is out of date.
+  if not isinstance(row_key, str) or not isinstance(column_key, str):
+    return None
+  row = _get_live(app_tables.inventory_rows, row_key=row_key)
+  column = _get_live(app_tables.inventory_columns, column_key=column_key)
+  if row is None or column is None or row["table_key"] != column["table_key"]:
+    return None
+  table = _get_live(app_tables.inventory_tables, table_key=row["table_key"])
+  if table is None:
+    return None
+  return table, row, column
+
+
+def _find_cell(row_key, column_key):
+  # search() rather than get() still copes with duplicates saved before
+  # saves ran in a transaction.
+  found = app_tables.inventory_cells.search(row_key=row_key, column_key=column_key)
+  return _newest_cells(found).get((row_key, column_key))
+
+
 @anvil.server.callable(require_user=True)
 @in_transaction
 def save_grid_cell(row_key, column_key, raw_quantity):
@@ -369,15 +488,10 @@ def save_grid_cell(row_key, column_key, raw_quantity):
   if initials is None:
     return {"ok": False, "message": NO_INITIALS_MESSAGE}
 
-  if not isinstance(row_key, str) or not isinstance(column_key, str):
+  target = _cell_target(row_key, column_key)
+  if target is None:
     return {"ok": False, "message": STALE_GRID_MESSAGE}
-  row = _get_live(app_tables.inventory_rows, row_key=row_key)
-  column = _get_live(app_tables.inventory_columns, column_key=column_key)
-  if row is None or column is None or row["table_key"] != column["table_key"]:
-    return {"ok": False, "message": STALE_GRID_MESSAGE}
-  table = _get_live(app_tables.inventory_tables, table_key=row["table_key"])
-  if table is None:
-    return {"ok": False, "message": STALE_GRID_MESSAGE}
+  table, row, column = target
 
   quantity = _parse_quantity(raw_quantity)
   if quantity is None:
@@ -387,11 +501,13 @@ def save_grid_cell(row_key, column_key, raw_quantity):
     }
 
   entered_at = datetime.now()
-  # The transaction stops two first saves both adding a cell; search() rather
-  # than get() still copes with duplicates saved before it was added.
-  latest = next(iter(app_tables.inventory_cells.search(row_key=row_key, column_key=column_key)), None)
+  # The transaction stops two first saves both adding a cell.
+  latest = _find_cell(row_key, column_key)
   if latest is None:
     latest = app_tables.inventory_cells.add_row(row_key=row_key, column_key=column_key)
+  # Kept with the entry so the Analytics chart can step back through a window
+  # of history without reading anything older.
+  previous_quantity = latest["quantity"]
   latest.update(quantity=quantity, entered_by=initials, entered_at=entered_at)
   app_tables.inventory_history.add_row(
     entry_id=uuid.uuid4().hex,
@@ -402,12 +518,156 @@ def save_grid_cell(row_key, column_key, raw_quantity):
     column_key=column_key,
     column_label=column["label"],
     quantity=quantity,
+    previous_quantity=previous_quantity,
     entered_by=initials,
     entered_at=entered_at,
   )
 
+  # The new count can lift a cell above par or end its overdue spell.
+  result = _par_fields(latest)
+  result.update(
+    ok=True,
+    entry_quantity=_format_quantity(quantity),
+    latest_display=_format_latest(latest),
+  )
+  return result
+
+
+@anvil.server.callable(require_user=True)
+@in_transaction
+def save_par_level(row_key, column_key, raw_par, raw_days):
+  # Blank clears either part. Like Customize, any signed-in user may set these.
+  target = _cell_target(row_key, column_key)
+  if target is None:
+    return {"ok": False, "message": STALE_GRID_MESSAGE}
+  _, row, column = target
+  name = f"{row['label']} · {column['label']}"
+
+  par_quantity = None if _is_blank(raw_par) else _parse_quantity(raw_par)
+  if par_quantity is None and not _is_blank(raw_par):
+    return {"ok": False, "message": f"Enter a par of zero or more for {name}, or leave it blank."}
+  max_days = None if _is_blank(raw_days) else _parse_days(raw_days)
+  if max_days is None and not _is_blank(raw_days):
+    return {
+      "ok": False,
+      "message": f"Enter 1–{MAX_PAR_DAYS} whole days between counts for {name}, or leave it blank.",
+    }
+
+  cell = _find_cell(row_key, column_key)
+  if cell is None and (par_quantity is not None or max_days is not None):
+    cell = app_tables.inventory_cells.add_row(row_key=row_key, column_key=column_key)
+  if cell is not None:
+    cell.update(par_quantity=par_quantity, max_days=max_days)
+    # A row that held only a par level has nothing left to keep.
+    if cell["quantity"] is None and par_quantity is None and max_days is None:
+      cell.delete()
+      cell = None
+
+  result = _par_fields(cell)
+  result["ok"] = True
+  return result
+
+
+@anvil.server.callable(require_user=True)
+def get_section_totals(table_key, days):
+  # Each column's total at the end of each day in the window. Five searches,
+  # and none reads history from before the window: the walk starts from
+  # today's counts and steps back through the window's entries, each of which
+  # remembers the quantity it replaced.
+  if days not in TOTALS_RANGES or not isinstance(table_key, str):
+    return {"ok": False, "message": STALE_GRID_MESSAGE}
+  table = _get_live(app_tables.inventory_tables, table_key=table_key)
+  if table is None:
+    return {"ok": False, "message": STALE_GRID_MESSAGE}
+  rows = _ordered(app_tables.inventory_rows, table_key=table_key)
+  columns = _ordered(app_tables.inventory_columns, table_key=table_key)
+  row_keys = {row["row_key"] for row in rows}
+  column_keys = {column["column_key"] for column in columns}
+
+  values = {}
+  if row_keys:
+    cells = app_tables.inventory_cells.search(
+      q.fetch_only("row_key", "column_key", "quantity", "entered_at"), row_key=q.any_of(*row_keys)
+    )
+    for key, cell in _newest_cells(cells).items():
+      if key[1] in column_keys and cell["quantity"] is not None:
+        values[key] = cell["quantity"]
+
+  today = datetime.now().date()
+  first_day = today - timedelta(days=days - 1)
+  window_start = datetime.combine(first_day, time.min)
+  found = app_tables.inventory_history.search(
+    q.fetch_only("row_key", "column_key", "quantity", "previous_quantity", "entered_at"),
+    table_key=table_key,
+    entered_at=q.greater_than_or_equal_to(window_start),
+  )
+  entries = sorted(
+    (
+      (_local(entry["entered_at"]), (entry["row_key"], entry["column_key"]), entry)
+      for entry in found
+      if entry["row_key"] in row_keys and entry["column_key"] in column_keys
+    ),
+    key=lambda item: item[0],
+  )
+  # [(entered_at, cell key, quantity before it)], oldest first. Entries saved
+  # before previous_quantity was kept (and not yet backfilled) have none, so
+  # take it from the cell's next-older entry in the window. Only a cell's
+  # oldest such entry is left unknown, and reads as uncounted before it.
+  last_quantity = {}
+  steps = []
+  for entered_at, key, entry in entries:
+    previous = entry["previous_quantity"]
+    if previous is None:
+      previous = last_quantity.get(key)
+    steps.append((entered_at, key, previous))
+    last_quantity[key] = entry["quantity"]
+  steps.reverse()
+
+  dates = [first_day + timedelta(days=offset) for offset in range(days)]
+  totals = {key: [None] * days for key in column_keys}
+  next_entry = 0
+  for index in range(days - 1, -1, -1):
+    day_end = datetime.combine(dates[index], time.min) + timedelta(days=1)
+    # Undo every entry saved after this day ended.
+    while next_entry < len(steps) and steps[next_entry][0] >= day_end:
+      _, key, previous = steps[next_entry]
+      if previous is None:
+        values.pop(key, None)
+      else:
+        values[key] = previous
+      next_entry += 1
+    for (_, column_key), quantity in values.items():
+      # A column with no counted cell that day stays a gap, not a zero.
+      totals[column_key][index] = (totals[column_key][index] or 0) + quantity
+
   return {
     "ok": True,
-    "entry_quantity": _format_quantity(quantity),
-    "latest_display": _format_latest(latest),
+    "dates": [day.strftime("%Y-%m-%d") for day in dates],
+    "series": [
+      {"column_key": column["column_key"], "label": column["label"], "totals": totals[column["column_key"]]}
+      for column in columns
+    ],
   }
+
+
+@anvil.server.background_task
+def backfill_previous_quantities():
+  # One-off, for history saved before entries kept the quantity they
+  # replaced. Fills it in from each cell's previous entry so the Analytics
+  # chart is exact for older ranges. Safe to run again: it only fills gaps.
+  # Launch from the server console:
+  #   anvil.server.launch_background_task("backfill_previous_quantities")
+  by_cell = {}
+  for entry in app_tables.inventory_history.search():
+    if entry["row_key"] and entry["column_key"] and entry["entered_at"]:
+      by_cell.setdefault((entry["row_key"], entry["column_key"]), []).append(entry)
+  filled = 0
+  for entries in by_cell.values():
+    entries.sort(key=lambda entry: _local(entry["entered_at"]))
+    # A cell's first entry has nothing before it, so it stays empty.
+    for older, entry in zip(entries, entries[1:]):
+      if entry["previous_quantity"] is None and older["quantity"] is not None:
+        entry["previous_quantity"] = older["quantity"]
+        filled += 1
+  print(f"Filled previous_quantity on {filled} history entries.")
+  return filled

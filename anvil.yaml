@@ -8,6 +8,8 @@ db_schema:
     - {name: quantity, type: number}
     - {name: entered_by, type: string}
     - {name: entered_at, type: datetime}
+    - {name: par_quantity, type: number}
+    - {name: max_days, type: number}
     server: full
     title: Latest inventory cells
   inventory_columns:
@@ -33,6 +35,7 @@ db_schema:
     - {name: quantity, type: number}
     - {name: entered_by, type: string}
     - {name: entered_at, type: datetime}
+    - {name: previous_quantity, type: number}
     server: full
     title: Inventory quantity history
   inventory_rows:

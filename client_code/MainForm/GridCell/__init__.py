@@ -2,6 +2,11 @@ from ._anvil_designer import GridCellTemplate
 from anvil import *
 import anvil.users
 
+# What a saved count sends back about its cell.
+SAVED_FIELDS = (
+  "entry_quantity", "latest_display", "par_text", "days_text", "below_par", "overdue", "alert_text",
+)
+
 
 class GridCell(GridCellTemplate):
   def __init__(self, **properties):
@@ -9,12 +14,20 @@ class GridCell(GridCellTemplate):
     self._saved_text = self.item["entry_quantity"]
     self._saving = False
     self.quantity_box.enabled = self.item["editable"]
+    self._show_flags()
 
-  def show_saved(self, entry_quantity, latest_display):
-    self._saved_text = entry_quantity
-    self.item["entry_quantity"] = entry_quantity
-    self.item["latest_display"] = latest_display
+  def _show_flags(self):
+    # The stylesheet marks a cell under its par level or past its count interval.
+    self.dom_nodes["cell"].classList.toggle("is-below-par", self.item["below_par"])
+    self.dom_nodes["cell"].classList.toggle("is-overdue", self.item["overdue"])
+
+  def show_saved(self, result):
+    # The item is MainForm's own copy of this cell, so Analytics sees the change too.
+    self._saved_text = result["entry_quantity"]
+    for name in SAVED_FIELDS:
+      self.item[name] = result[name]
     self.refresh_data_bindings()
+    self._show_flags()
 
   def revert(self):
     self.item["entry_quantity"] = self._saved_text

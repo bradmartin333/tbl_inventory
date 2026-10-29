@@ -3,6 +3,14 @@ import unittest
 from tests.support import Component, load_form, state
 
 
+def saved_count(entry_quantity, latest_display, below_par=False, overdue=False):
+  # What save_grid_cell sends back.
+  return {
+    "entry_quantity": entry_quantity, "latest_display": latest_display, "par_text": "2",
+    "days_text": "", "below_par": below_par, "overdue": overdue, "alert_text": "",
+  }
+
+
 def parent_recording(event):
   # A parent panel that records what its child raises.
   parent = Component()
@@ -15,7 +23,10 @@ class GridCellTest(unittest.TestCase):
   def setUp(self):
     state.reset()
     module = load_form("MainForm", "GridCell")
-    item = {"entry_quantity": "3", "latest_display": "BM · 03/04", "editable": True}
+    item = {
+      "entry_quantity": "3", "latest_display": "BM · 03/04", "editable": True,
+      "below_par": False, "overdue": True,
+    }
     self.cell = module.GridCell(item=item)
     self.cell.parent, self.raised = parent_recording("x-save-cell")
 
@@ -39,7 +50,7 @@ class GridCellTest(unittest.TestCase):
     self.assertEqual(self.raised, [{"cell": self.cell, "quantity": "4"}])
 
   def test_saved_value_becomes_the_new_baseline(self):
-    self.cell.show_saved("4", "BM · 03/05")
+    self.cell.show_saved(saved_count("4", "BM · 03/05"))
     self.assertEqual(self.cell.item["latest_display"], "BM · 03/05")
     self.leave_with("4")
     self.assertEqual(self.raised, [])
@@ -48,8 +59,16 @@ class GridCellTest(unittest.TestCase):
 
   def test_view_only_cells_are_disabled(self):
     module = load_form("MainForm", "GridCell")
-    cell = module.GridCell(item={"entry_quantity": "3", "latest_display": "", "editable": False})
+    cell = module.GridCell(item={
+      "entry_quantity": "3", "latest_display": "", "editable": False, "below_par": False, "overdue": False,
+    })
     self.assertFalse(cell.quantity_box.enabled)
+
+  def test_par_flags_mark_the_cell_and_follow_a_save(self):
+    classes = self.cell.dom_nodes["cell"].classList.names
+    self.assertEqual(classes, {"is-overdue"})
+    self.cell.show_saved(saved_count("1", "BM · 03/05", below_par=True))
+    self.assertEqual(classes, {"is-below-par"})
 
 
 class GridSectionTest(unittest.TestCase):
@@ -109,6 +128,92 @@ class SectionListItemTest(unittest.TestCase):
     item.parent, raised = parent_recording("x-select-section")
     item.select_button_click()
     self.assertEqual(raised, [{"index": 2}])
+
+
+class ParLevelRowTest(unittest.TestCase):
+  def setUp(self):
+    module = load_form("MainForm", "ParLevelRow")
+    self.row = module.ParLevelRow(item={
+      "row_key": "r", "column_key": "c", "label": "Ice", "entry_quantity": "1",
+      "par_text": "4", "days_text": "", "below_par": True, "overdue": False,
+    })
+    # The boxes as their bindings fill them.
+    self.row.par_box.text, self.row.days_box.text = "4", ""
+    self.sent = []
+    # Answers each save the way MainForm does; a test can type during it.
+    self.during_save = None
+    self.refuse = False
+    self.row.parent = Component()
+    self.row.parent.add_event_handler("x-save-par", self.answer)
+
+  def answer(self, row, par, days):
+    self.sent.append((par, days))
+    if self.during_save:
+      during, self.during_save = self.during_save, None
+      during()
+    if self.refuse:
+      row.revert()
+    else:
+      # The server tidies "7.0" to "7".
+      row.show_saved({
+        "par_text": par.replace(".0", ""), "days_text": days.replace(".0", ""),
+        "below_par": False, "overdue": days != "",
+      })
+
+  def enter(self, par, days):
+    self.row.par_box.text = par
+    self.row.days_box.text = days
+
+  def test_untouched_boxes_save_nothing(self):
+    self.enter(" 4 ", "")
+    self.row.par_box_lost_focus()
+    self.row.days_box_lost_focus()
+    self.assertEqual(self.sent, [])
+
+  def test_either_box_saves_the_pair_and_takes_the_tidy_value(self):
+    self.enter("4", " 7.0 ")
+    self.row.days_box_pressed_enter()
+    self.assertEqual(self.sent, [("4", "7.0")])
+    self.assertEqual((self.row.days_box.text, self.row.item["days_text"]), ("7", "7"))
+    self.assertEqual(self.row.dom_nodes["row"].classList.names, {"is-overdue"})
+
+  def test_an_edit_made_while_saving_is_kept_and_saved_next(self):
+    self.enter("5", "")
+
+    def type_days():
+      # Tab to Days, type, and leave it before the par save lands.
+      self.row.days_box.text = "7"
+      self.row.days_box_lost_focus()
+
+    self.during_save = type_days
+    self.row.par_box_lost_focus()
+    self.assertEqual(self.sent, [("5", ""), ("5", "7")])
+    self.assertEqual((self.row.par_box.text, self.row.days_box.text), ("5", "7"))
+
+  def test_refused_save_reverts_only_what_was_sent_and_is_not_retried(self):
+    self.refuse = True
+    self.enter("lots", "")
+    self.row.par_box_lost_focus()
+    self.assertEqual(self.sent, [("lots", "")])
+    self.assertEqual(self.row.par_box.text, "4")
+    self.enter("lots", "")
+
+    def type_days():
+      self.row.days_box.text = "7"
+
+    self.during_save = type_days
+    self.sent.clear()
+    self.row.par_box_lost_focus()
+    # Par goes back; the days typed meanwhile stay and are sent once.
+    self.assertEqual(self.sent, [("lots", ""), ("4", "7")])
+    self.assertEqual((self.row.par_box.text, self.row.days_box.text), ("4", ""))
+
+
+class ParAlertItemTest(unittest.TestCase):
+  def test_marks_the_kind_of_alert(self):
+    module = load_form("MainForm", "ParAlertItem")
+    item = module.ParAlertItem(item={"label": "Ice", "detail": "Low", "below_par": True, "overdue": True})
+    self.assertEqual(item.dom_nodes["item"].classList.names, {"is-below-par", "is-overdue"})
 
 
 if __name__ == "__main__":
