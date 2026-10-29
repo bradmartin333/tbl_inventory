@@ -587,6 +587,71 @@ class GuidedEntryTest(FormTest):
     self.assertEqual(self.form._active_tab, "grid")
     self.assertEqual(len(app_tables.inventory_history.rows), 1)
 
+  def test_back_returns_to_the_saved_count(self):
+    form = self.form
+    self.assertFalse(form.wizard_back_button.visible)
+    form.wizard_quantity_box.text = "3"
+    form.wizard_next_button_click()
+    self.assertTrue(form.wizard_back_button.visible)
+    form.wizard_back_button_click()
+    self.assertEqual(form.wizard_step_label.text, "Cell 1 of 5")
+    self.assertEqual(form.wizard_quantity_box.text, "3")
+    self.assertEqual(len(app_tables.inventory_history.rows), 1)
+
+  def test_back_saves_only_an_edit(self):
+    form = self.form
+    form.wizard_next_button_click()
+    form.wizard_back_button_click()
+    self.assertEqual(len(app_tables.inventory_history.rows), 1)
+    form.wizard_next_button_click()
+    self.assertEqual(len(app_tables.inventory_history.rows), 1)
+    form.wizard_quantity_box.text = "4"
+    form.wizard_back_button_click()
+    self.assertEqual(form.wizard_step_label.text, "Cell 1 of 5")
+    self.assertEqual(len(app_tables.inventory_history.rows), 2)
+
+  def test_back_moves_before_the_reload(self):
+    form = self.form
+    form.wizard_next_button_click()
+    form.wizard_quantity_box.text = "4"
+    load = load_server().get_inventory_grid
+    def tap_again():
+      # A second tap while the reload is out.
+      state.routes.pop("get_inventory_grid")
+      form.wizard_back_button_click()
+      return load()
+    state.routes["get_inventory_grid"] = tap_again
+    form.wizard_back_button_click()
+    self.assertEqual(form._wizard_index, 0)
+    self.assertEqual(form.wizard_step_label.text, "Cell 1 of 5")
+
+  def test_back_shows_a_count_saved_from_the_grid(self):
+    form = self.form
+    form.wizard_next_button_click()
+    app_tables.inventory_cells.get(row_key="A-r0", column_key="A-c0")["quantity"] = 9
+    form.wizard_quantity_box.text = "4"
+    form.wizard_next_button_click()
+    form.wizard_back_button_click()
+    form.wizard_back_button_click()
+    self.assertEqual(form.wizard_quantity_box.text, "9")
+
+  def test_refused_back_stays(self):
+    form = self.form
+    form.wizard_next_button_click()
+    form.wizard_quantity_box.text = "lots"
+    form.wizard_back_button_click()
+    self.assertEqual(form.wizard_step_label.text, "Cell 2 of 5")
+
+  def test_back_leaves_the_done_screen(self):
+    form = self.form
+    for _ in range(5):
+      form.wizard_next_button_click()
+    self.assertTrue(form.wizard_back_button.visible)
+    form.wizard_back_button_click()
+    self.assertEqual(form.wizard_step_label.text, "Cell 5 of 5")
+    self.assertFalse(form.wizard_close_button.visible)
+    self.assertEqual(len(app_tables.inventory_history.rows), 5)
+
   def test_quick_quantities(self):
     form = self.form
     form.wizard_half_button_click()
