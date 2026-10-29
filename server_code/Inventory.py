@@ -111,6 +111,12 @@ def _local(moment):
   return moment.astimezone().replace(tzinfo=None) if moment.tzinfo else moment
 
 
+def _days_since(moment):
+  # Calendar days, as people say it: a count saved last night was 1 day ago
+  # this morning, not 0.
+  return (datetime.now().date() - _local(moment).date()).days
+
+
 def _par_flags(cell):
   # (below par, overdue). An uncounted cell holds 0, just as the grid shows it.
   if cell is None:
@@ -118,8 +124,7 @@ def _par_flags(cell):
   quantity = cell["quantity"] if cell["quantity"] is not None else 0
   below_par = cell["par_quantity"] is not None and quantity < cell["par_quantity"]
   overdue = bool(cell["max_days"]) and (
-    not cell["entered_at"]
-    or datetime.now() - _local(cell["entered_at"]) > timedelta(days=cell["max_days"])
+    not cell["entered_at"] or _days_since(cell["entered_at"]) > cell["max_days"]
   )
   return below_par, overdue
 
@@ -139,7 +144,7 @@ def _alert_text(cell, below_par, overdue):
   if overdue:
     interval = _plural(int(cell["max_days"]), "day")
     if cell["entered_at"]:
-      days_ago = (datetime.now() - _local(cell["entered_at"])).days
+      days_ago = _days_since(cell["entered_at"])
       parts.append(f"Due: last counted {_plural(days_ago, 'day')} ago, every {interval}")
     else:
       parts.append(f"Due: never counted, every {interval}")
@@ -211,16 +216,27 @@ def activate_account(email):
   return {"ok": True}
 
 
-def _ordered(table):
-  items = _live(table)
+def _ordered(table, **filters):
+  items = _live(table, **filters)
   items.sort(key=lambda item: item["sort_order"] or 0)
   return items
 
 
-def _ordered_in(table, table_key):
-  items = _live(table, table_key=table_key)
-  items.sort(key=lambda item: item["sort_order"] or 0)
-  return items
+def _cell_rank(cell):
+  return _local(cell["entered_at"]) if cell["entered_at"] else datetime.min
+
+
+def _newest_cells(cells):
+  # {(row_key, column_key): cell}. Saves from before they ran in a
+  # transaction could leave two rows for one cell; every reader and writer
+  # uses the most recently counted, so a par level never lands on a row the
+  # grid doesn't show. Saving a count keeps that row the newest.
+  chosen = {}
+  for cell in cells:
+    key = (cell["row_key"], cell["column_key"])
+    if key not in chosen or _cell_rank(cell) > _cell_rank(chosen[key]):
+      chosen[key] = cell
+  return chosen
 
 
 def _setup_version(tables, rows, columns):
@@ -297,10 +313,7 @@ def get_inventory_grid():
   columns = _ordered(app_tables.inventory_columns)
   rows_by_table = _group_by_table(rows)
   columns_by_table = _group_by_table(columns)
-  saved_cells = {
-    (cell["row_key"], cell["column_key"]): cell
-    for cell in app_tables.inventory_cells.search()
-  }
+  saved_cells = _newest_cells(app_tables.inventory_cells.search())
 
   return {
     "initials": _user_initials(anvil.users.get_user()),
@@ -464,7 +477,8 @@ def _cell_target(row_key, column_key):
 def _find_cell(row_key, column_key):
   # search() rather than get() still copes with duplicates saved before
   # saves ran in a transaction.
-  return next(iter(app_tables.inventory_cells.search(row_key=row_key, column_key=column_key)), None)
+  found = app_tables.inventory_cells.search(row_key=row_key, column_key=column_key)
+  return _newest_cells(found).get((row_key, column_key))
 
 
 @anvil.server.callable(require_user=True)
@@ -565,46 +579,62 @@ def get_section_totals(table_key, days):
   table = _get_live(app_tables.inventory_tables, table_key=table_key)
   if table is None:
     return {"ok": False, "message": STALE_GRID_MESSAGE}
-  rows = _ordered_in(app_tables.inventory_rows, table_key)
-  columns = _ordered_in(app_tables.inventory_columns, table_key)
+  rows = _ordered(app_tables.inventory_rows, table_key=table_key)
+  columns = _ordered(app_tables.inventory_columns, table_key=table_key)
   row_keys = {row["row_key"] for row in rows}
   column_keys = {column["column_key"] for column in columns}
 
   values = {}
   if row_keys:
-    for cell in app_tables.inventory_cells.search(
-      q.fetch_only("row_key", "column_key", "quantity"), row_key=q.any_of(*row_keys)
-    ):
-      if cell["column_key"] in column_keys and cell["quantity"] is not None:
-        values[(cell["row_key"], cell["column_key"])] = cell["quantity"]
+    cells = app_tables.inventory_cells.search(
+      q.fetch_only("row_key", "column_key", "quantity", "entered_at"), row_key=q.any_of(*row_keys)
+    )
+    for key, cell in _newest_cells(cells).items():
+      if key[1] in column_keys and cell["quantity"] is not None:
+        values[key] = cell["quantity"]
 
   today = datetime.now().date()
   first_day = today - timedelta(days=days - 1)
   window_start = datetime.combine(first_day, time.min)
-  entries = [
-    entry for entry in app_tables.inventory_history.search(
-      q.fetch_only("row_key", "column_key", "previous_quantity", "entered_at"),
-      table_key=table_key,
-      entered_at=q.greater_than_or_equal_to(window_start),
-    )
-    if entry["row_key"] in row_keys and entry["column_key"] in column_keys
-  ]
-  entries.sort(key=lambda entry: _local(entry["entered_at"]), reverse=True)
+  found = app_tables.inventory_history.search(
+    q.fetch_only("row_key", "column_key", "quantity", "previous_quantity", "entered_at"),
+    table_key=table_key,
+    entered_at=q.greater_than_or_equal_to(window_start),
+  )
+  entries = sorted(
+    (
+      (_local(entry["entered_at"]), (entry["row_key"], entry["column_key"]), entry)
+      for entry in found
+      if entry["row_key"] in row_keys and entry["column_key"] in column_keys
+    ),
+    key=lambda item: item[0],
+  )
+  # [(entered_at, cell key, quantity before it)], oldest first. Entries saved
+  # before previous_quantity was kept (and not yet backfilled) have none, so
+  # take it from the cell's next-older entry in the window. Only a cell's
+  # oldest such entry is left unknown, and reads as uncounted before it.
+  last_quantity = {}
+  steps = []
+  for entered_at, key, entry in entries:
+    previous = entry["previous_quantity"]
+    if previous is None:
+      previous = last_quantity.get(key)
+    steps.append((entered_at, key, previous))
+    last_quantity[key] = entry["quantity"]
+  steps.reverse()
 
   dates = [first_day + timedelta(days=offset) for offset in range(days)]
   totals = {key: [None] * days for key in column_keys}
   next_entry = 0
   for index in range(days - 1, -1, -1):
     day_end = datetime.combine(dates[index], time.min) + timedelta(days=1)
-    # Undo every entry saved after this day ended. Entries from before
-    # previous_quantity was kept read as None: uncounted before them.
-    while next_entry < len(entries) and _local(entries[next_entry]["entered_at"]) >= day_end:
-      entry = entries[next_entry]
-      key = (entry["row_key"], entry["column_key"])
-      if entry["previous_quantity"] is None:
+    # Undo every entry saved after this day ended.
+    while next_entry < len(steps) and steps[next_entry][0] >= day_end:
+      _, key, previous = steps[next_entry]
+      if previous is None:
         values.pop(key, None)
       else:
-        values[key] = entry["previous_quantity"]
+        values[key] = previous
       next_entry += 1
     for (_, column_key), quantity in values.items():
       # A column with no counted cell that day stays a gap, not a zero.
@@ -618,3 +648,26 @@ def get_section_totals(table_key, days):
       for column in columns
     ],
   }
+
+
+@anvil.server.background_task
+def backfill_previous_quantities():
+  # One-off, for history saved before entries kept the quantity they
+  # replaced. Fills it in from each cell's previous entry so the Analytics
+  # chart is exact for older ranges. Safe to run again: it only fills gaps.
+  # Launch from the server console:
+  #   anvil.server.launch_background_task("backfill_previous_quantities")
+  by_cell = {}
+  for entry in app_tables.inventory_history.search():
+    if entry["row_key"] and entry["column_key"] and entry["entered_at"]:
+      by_cell.setdefault((entry["row_key"], entry["column_key"]), []).append(entry)
+  filled = 0
+  for entries in by_cell.values():
+    entries.sort(key=lambda entry: _local(entry["entered_at"]))
+    # A cell's first entry has nothing before it, so it stays empty.
+    for older, entry in zip(entries, entries[1:]):
+      if entry["previous_quantity"] is None and older["quantity"] is not None:
+        entry["previous_quantity"] = older["quantity"]
+        filled += 1
+  print(f"Filled previous_quantity on {filled} history entries.")
+  return filled

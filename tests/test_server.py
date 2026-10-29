@@ -1,4 +1,6 @@
+import contextlib
 from datetime import datetime, time, timedelta
+import io
 import unittest
 
 from tests.support import add_section, app_tables, load_server, state
@@ -278,6 +280,15 @@ class SaveParLevelTest(ServerTest):
     result = inv.save_par_level("A-r0", "A-c0", "7", "7")
     self.assertEqual((result["below_par"], result["overdue"], result["alert_text"]), (False, False, ""))
 
+  def test_overdue_counts_calendar_days(self):
+    # Due once more days have passed than allowed: counted 7 days ago with a
+    # 7-day interval is still fine; 8 days ago is due.
+    cell = app_tables.inventory_cells.get(row_key="A-r0", column_key="A-c0")
+    cell["entered_at"] = days_ago(7)
+    self.assertFalse(inv.save_par_level("A-r0", "A-c0", "", "7")["overdue"])
+    cell["entered_at"] = days_ago(8)
+    self.assertTrue(inv.save_par_level("A-r0", "A-c0", "", "7")["overdue"])
+
   def test_overdue_says_how_long_it_has_been(self):
     app_tables.inventory_cells.get(row_key="A-r0", column_key="A-c0")["entered_at"] = days_ago(10)
     result = inv.save_par_level("A-r0", "A-c0", "", "1")
@@ -354,6 +365,27 @@ class SectionTotalsTest(ServerTest):
     self.assertEqual(qty["totals"], [None] * 19 + [3] * 5 + [10] * 3 + [14] * 3)
     self.assertEqual(cases["totals"], [14] * 30)
 
+  def test_entries_from_before_previous_quantity_use_the_cells_older_entry(self):
+    # Both saved before entries kept what they replaced: 10 twenty days ago,
+    # recounted to 7 five days ago. Only before the first is unknown.
+    log("A-r0", "A-c0", 10, None, 20)
+    log("A-r0", "A-c0", 7, None, 5)
+    qty = inv.get_section_totals("A", 30)["series"][0]["totals"]
+    # Peas (7, no history) holds all month.
+    self.assertEqual(qty, [7] * 9 + [17] * 15 + [14] * 6)
+
+  def test_backfill_fills_only_the_gaps(self):
+    log("A-r0", "A-c0", 7, None, 5)
+    log("A-r0", "A-c0", 10, None, 20)
+    log("A-r0", "A-c0", 4, 99, 10)
+    log("A-r1", "A-c0", 2, None, 3)
+    with contextlib.redirect_stdout(io.StringIO()):
+      self.assertEqual(inv.backfill_previous_quantities(), 1)
+      self.assertEqual(inv.backfill_previous_quantities(), 0)
+    by_day = {e["entry_id"]: e["previous_quantity"] for e in app_tables.inventory_history.rows}
+    # Oldest first: 10 (first, stays empty), 4 (already had 99), 7 (gets 4).
+    self.assertEqual(by_day, {"A-r0-5": 4, "A-r0-20": None, "A-r0-10": 99, "A-r1-3": None})
+
   def test_reads_five_times_and_only_the_window(self):
     log("A-r0", "A-c0", 3, None, 40)
     app_tables.reset_reads()
@@ -365,6 +397,25 @@ class SectionTotalsTest(ServerTest):
     for table_key, days in [("A", 7), ("A", "30"), ("gone", 30), (None, 30)]:
       with self.subTest(table_key=table_key, days=days):
         self.assertEqual(inv.get_section_totals(table_key, days), {"ok": False, "message": inv.STALE_GRID_MESSAGE})
+
+
+class DuplicateCellTest(ServerTest):
+  # Two rows for one cell, left by saves from before they ran in a transaction.
+  def setUp(self):
+    super().setUp()
+    add_section("A", "Freezer")
+    app_tables.inventory_cells.get(row_key="A-r0", column_key="A-c0")["entered_at"] = days_ago(1)
+    app_tables.inventory_cells.add_row(row_key="A-r0", column_key="A-c0", quantity=2, entered_at=days_ago(9))
+
+  def test_everyone_uses_the_most_recently_counted_row(self):
+    inv.save_par_level("A-r0", "A-c0", "10", "")
+    newest, older = app_tables.inventory_cells.rows
+    self.assertEqual((newest["par_quantity"], older["par_quantity"]), (10, None))
+    cell = inv.get_inventory_grid()["tables"][0]["rows"][0]["cells"][0]
+    self.assertEqual((cell["entry_quantity"], cell["par_text"], cell["below_par"]), ("7", "10", True))
+    self.assertEqual(inv.get_section_totals("A", 30)["series"][0]["totals"][-1], 7)
+    inv.save_grid_cell("A-r0", "A-c0", "3")
+    self.assertEqual((newest["quantity"], older["quantity"]), (3, 2))
 
 
 class LoadBudgetTest(ServerTest):

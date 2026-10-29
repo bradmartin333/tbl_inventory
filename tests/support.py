@@ -365,6 +365,7 @@ def _install():
 
   server = types.ModuleType("anvil.server")
   server.callable = _callable
+  server.background_task = lambda function: function
   server.call = server.call_s = _call
 
   users = types.ModuleType("anvil.users")

@@ -137,7 +137,28 @@ class ParLevelRowTest(unittest.TestCase):
       "row_key": "r", "column_key": "c", "label": "Ice", "entry_quantity": "1",
       "par_text": "4", "days_text": "", "below_par": True, "overdue": False,
     })
-    self.row.parent, self.raised = parent_recording("x-save-par")
+    # The boxes as their bindings fill them.
+    self.row.par_box.text, self.row.days_box.text = "4", ""
+    self.sent = []
+    # Answers each save the way MainForm does; a test can type during it.
+    self.during_save = None
+    self.refuse = False
+    self.row.parent = Component()
+    self.row.parent.add_event_handler("x-save-par", self.answer)
+
+  def answer(self, row, par, days):
+    self.sent.append((par, days))
+    if self.during_save:
+      during, self.during_save = self.during_save, None
+      during()
+    if self.refuse:
+      row.revert()
+    else:
+      # The server tidies "7.0" to "7".
+      row.show_saved({
+        "par_text": par.replace(".0", ""), "days_text": days.replace(".0", ""),
+        "below_par": False, "overdue": days != "",
+      })
 
   def enter(self, par, days):
     self.row.par_box.text = par
@@ -147,23 +168,45 @@ class ParLevelRowTest(unittest.TestCase):
     self.enter(" 4 ", "")
     self.row.par_box_lost_focus()
     self.row.days_box_lost_focus()
-    self.assertEqual(self.raised, [])
+    self.assertEqual(self.sent, [])
 
-  def test_either_box_saves_the_pair(self):
-    self.enter("4", " 7 ")
+  def test_either_box_saves_the_pair_and_takes_the_tidy_value(self):
+    self.enter("4", " 7.0 ")
     self.row.days_box_pressed_enter()
-    self.assertEqual(self.raised, [{"row": self.row, "par": "4", "days": "7"}])
-
-  def test_saved_values_become_the_baseline_and_revert_restores_them(self):
-    self.assertIn("is-below-par", self.row.dom_nodes["row"].classList.names)
-    self.row.show_saved({"par_text": "", "days_text": "7", "below_par": False, "overdue": True})
+    self.assertEqual(self.sent, [("4", "7.0")])
+    self.assertEqual((self.row.days_box.text, self.row.item["days_text"]), ("7", "7"))
     self.assertEqual(self.row.dom_nodes["row"].classList.names, {"is-overdue"})
-    self.enter("", "7")
+
+  def test_an_edit_made_while_saving_is_kept_and_saved_next(self):
+    self.enter("5", "")
+
+    def type_days():
+      # Tab to Days, type, and leave it before the par save lands.
+      self.row.days_box.text = "7"
+      self.row.days_box_lost_focus()
+
+    self.during_save = type_days
     self.row.par_box_lost_focus()
-    self.assertEqual(self.raised, [])
-    self.row.item["days_text"] = "9"
-    self.row.revert()
-    self.assertEqual((self.row.item["par_text"], self.row.item["days_text"]), ("", "7"))
+    self.assertEqual(self.sent, [("5", ""), ("5", "7")])
+    self.assertEqual((self.row.par_box.text, self.row.days_box.text), ("5", "7"))
+
+  def test_refused_save_reverts_only_what_was_sent_and_is_not_retried(self):
+    self.refuse = True
+    self.enter("lots", "")
+    self.row.par_box_lost_focus()
+    self.assertEqual(self.sent, [("lots", "")])
+    self.assertEqual(self.row.par_box.text, "4")
+    self.enter("lots", "")
+
+    def type_days():
+      self.row.days_box.text = "7"
+
+    self.during_save = type_days
+    self.sent.clear()
+    self.row.par_box_lost_focus()
+    # Par goes back; the days typed meanwhile stay and are sent once.
+    self.assertEqual(self.sent, [("lots", ""), ("4", "7")])
+    self.assertEqual((self.row.par_box.text, self.row.days_box.text), ("4", ""))
 
 
 class ParAlertItemTest(unittest.TestCase):

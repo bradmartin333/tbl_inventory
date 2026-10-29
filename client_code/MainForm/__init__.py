@@ -14,21 +14,27 @@ NO_INITIALS_MESSAGE = (
 # one, so the box reverts instead of keeping a value that never saved.
 SAVE_FAILED = {"ok": False, "message": "That didn't save. Check your connection and try again."}
 TOTALS_FAILED = {"ok": False, "message": "The chart didn't load. Check your connection and press Refresh."}
+TOTALS_NOT_LOADED = "The chart didn't load. Press Refresh to try again."
 # What a saved par level sends back about its cell.
 PAR_FIELDS = ("par_text", "days_text", "below_par", "overdue", "alert_text")
 TOTALS_RANGES = [("Last 30 days", 30), ("Last 90 days", 90), ("Last year", 365)]
 # The chart draws one column at a time, so one line colour does.
 TOTALS_COLOR = "#2a78d6"
-TOTALS_LAYOUT = {
-  "margin": {"l": 44, "r": 12, "t": 8, "b": 36},
-  "hovermode": "x unified",
-  "paper_bgcolor": "rgba(0,0,0,0)",
-  "plot_bgcolor": "rgba(0,0,0,0)",
-  "showlegend": False,
-  "font": {"color": "#6b655b", "size": 12},
-  "xaxis": {"type": "date", "showgrid": False, "linecolor": "#dcd6ca", "fixedrange": True},
-  "yaxis": {"rangemode": "tozero", "gridcolor": "#efece5", "zeroline": False, "fixedrange": True},
-}
+
+
+def _totals_layout():
+  # A fresh dict each draw: Plotly may write ranges back into the layout it's
+  # given, and those mustn't carry over to the next column or range.
+  return {
+    "margin": {"l": 44, "r": 12, "t": 8, "b": 36},
+    "hovermode": "x unified",
+    "paper_bgcolor": "rgba(0,0,0,0)",
+    "plot_bgcolor": "rgba(0,0,0,0)",
+    "showlegend": False,
+    "font": {"color": "#6b655b", "size": 12},
+    "xaxis": {"type": "date", "showgrid": False, "linecolor": "#dcd6ca", "fixedrange": True},
+    "yaxis": {"rangemode": "tozero", "gridcolor": "#efece5", "zeroline": False, "fixedrange": True},
+  }
 
 
 def _clean_lines(text):
@@ -57,8 +63,11 @@ class MainForm(MainFormTemplate):
     self._wizard_index = 0
     self.tables_panel.add_event_handler("x-save-cell", self._save_grid_cell)
     self.par_levels_panel.add_event_handler("x-save-par", self._save_par_level)
-    # Charts already fetched, by (section, days). Any new count empties it.
+    # Charts already fetched, by (section, days). Any new count empties it,
+    # and bumps the generation so a fetch already out can't refill it with
+    # totals from before that count.
     self._totals_cache = {}
+    self._totals_generation = 0
     self._analytics_table_key = None
     # The column the par levels and chart show, within the Analytics section.
     self._column_key = None
@@ -191,7 +200,7 @@ class MainForm(MainFormTemplate):
       table["table_key"] for table in self._snapshot["tables"] if table["expanded"]
     }
     self._snapshot = snapshot
-    self._totals_cache = {}
+    self._clear_totals()
     # The server vets the account's initials; without them every save would be refused.
     self._can_enter = snapshot["initials"] is not None
     self.user_initials_label.text = snapshot["initials"] or "—"
@@ -294,13 +303,23 @@ class MainForm(MainFormTemplate):
     self._show_totals()
 
   def _snapshot_cell(self, row_key, column_key):
+    # None when a reload while the save was out dropped the cell.
     return next(
-      cell
-      for table in self._snapshot["tables"]
-      for row in table["rows"]
-      for cell in row["cells"]
-      if cell["row_key"] == row_key and cell["column_key"] == column_key
+      (
+        cell
+        for table in self._snapshot["tables"]
+        for row in table["rows"]
+        for cell in row["cells"]
+        if cell["row_key"] == row_key and cell["column_key"] == column_key
+      ),
+      None,
     )
+
+  def _forget_failed_totals(self):
+    # A failed load stays failed while only the column changes; picking a
+    # section or range, opening the tab, or Refresh tries again.
+    for key in [key for key, totals in self._totals_cache.items() if not totals["ok"]]:
+      del self._totals_cache[key]
 
   def _show_totals(self):
     # The chart's history read is the one slow call here, so it runs once per
@@ -309,28 +328,40 @@ class MainForm(MainFormTemplate):
     key = (self._analytics_table_key, self.range_dropdown.selected_value)
     totals = self._totals_cache.get(key)
     if totals is None:
+      generation = self._totals_generation
       try:
         totals = anvil.server.call("get_section_totals", key[0], key[1])
       except Exception:
         totals = TOTALS_FAILED
+      if generation != self._totals_generation:
+        # A count saved while this was out may be missing from it; fetch
+        # again (or use what a redraw meanwhile already fetched).
+        return self._show_totals()
+      self._totals_cache[key] = totals
       if not totals["ok"]:
         self._show_error(totals["message"])
-        self._show_totals_empty()
-        return
-      self._totals_cache[key] = totals
+    if not totals["ok"]:
+      self._show_totals_empty(TOTALS_NOT_LOADED)
+      return
 
+    # The grid's own name for the column, the same one the picker shows.
+    label = next(
+      column["label"] for column in self._analytics_table()["columns"]
+      if column["column_key"] == self._column_key
+    )
     series = next(
       (series for series in totals["series"] if series["column_key"] == self._column_key), None
     )
     values = [value for value in series["totals"] if value is not None] if series else []
     if not values:
-      self._show_totals_empty()
+      # Name the column, so an empty one doesn't read as an empty section.
+      self._show_totals_empty(f"No {label} counts saved in this range yet.")
       return
-    self.totals_plot.layout = TOTALS_LAYOUT
+    self.totals_plot.layout = _totals_layout()
     self.totals_plot.data = [{
       "type": "scatter",
       "mode": "lines",
-      "name": series["label"],
+      "name": label,
       "x": totals["dates"],
       "y": series["totals"],
       "connectgaps": False,
@@ -339,13 +370,14 @@ class MainForm(MainFormTemplate):
     }]
     self.totals_plot.visible = True
     # The column picker and this line name the one series, so there's no legend.
-    self.totals_summary_label.text = f"Latest {series['label']} total: {values[-1]:g}"
+    self.totals_summary_label.text = f"Latest {label} total: {values[-1]:g}"
     self.totals_summary_label.visible = True
     self.totals_empty_label.visible = False
 
-  def _show_totals_empty(self):
+  def _show_totals_empty(self, message):
     self.totals_plot.visible = False
     self.totals_summary_label.visible = False
+    self.totals_empty_label.text = message
     self.totals_empty_label.visible = True
 
   def _show_error(self, message):
@@ -580,15 +612,18 @@ class MainForm(MainFormTemplate):
   @handle("analytics_tab_button", "click")
   def analytics_tab_button_click(self, **event_args):
     if self._set_active_tab("analytics"):
+      self._forget_failed_totals()
       self._render_analytics()
 
   @handle("section_dropdown", "change")
   def section_dropdown_change(self, **event_args):
     self._analytics_table_key = self.section_dropdown.selected_value
+    self._forget_failed_totals()
     self._render_section_analytics()
 
   @handle("range_dropdown", "change")
   def range_dropdown_change(self, **event_args):
+    self._forget_failed_totals()
     self._show_totals()
 
   @handle("column_dropdown", "change")
@@ -641,7 +676,15 @@ class MainForm(MainFormTemplate):
 
     cell.show_saved(result)
     # The chart's totals include this count now.
+    self._clear_totals()
+    # Leaving the box for the Analytics tab starts this save, and the tab can
+    # draw before it lands; draw it again with the new count.
+    if self._active_tab == "analytics":
+      self._render_analytics()
+
+  def _clear_totals(self):
     self._totals_cache = {}
+    self._totals_generation += 1
 
   def _save_par_level(self, row, par, days, **event_args):
     row_key = row.item["row_key"]
@@ -660,11 +703,17 @@ class MainForm(MainFormTemplate):
 
     row.show_saved(result)
     cell = self._snapshot_cell(row_key, column_key)
+    if cell is None:
+      return
     for name in PAR_FIELDS:
       cell[name] = result[name]
     self._render_alerts()
-    # The grid is hidden while Analytics is open; it picks this up on return.
-    self._grid_needs_rebuild = True
+    if self._active_tab == "grid":
+      # Leaving the par box for the Grid tab starts this save, so the grid
+      # can already be showing; redraw it now rather than on the next visit.
+      self._show_grid()
+    else:
+      self._grid_needs_rebuild = True
 
   @handle("add_section_button", "click")
   def add_section_button_click(self, **event_args):
