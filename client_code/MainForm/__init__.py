@@ -544,6 +544,8 @@ class MainForm(MainFormTemplate):
     self.wizard_next_button.visible = not complete
     self.wizard_exit_button.visible = not complete
     self.wizard_close_button.visible = complete
+    # Back also leaves the done screen, so a last-cell slip can be fixed.
+    self.wizard_back_button.visible = self._wizard_index > 0
     if complete:
       self.wizard_step_label.text = "Guided entry complete"
       self.wizard_target_label.text = "All cells have been reviewed."
@@ -562,7 +564,9 @@ class MainForm(MainFormTemplate):
 
   def _save_wizard_step(self, quantity, advance=True):
     _, row, cell = self._wizard_cells[self._wizard_index]
-    wizard_buttons = (self.wizard_next_button, self.wizard_zero_button, self.wizard_exit_button)
+    wizard_buttons = (
+      self.wizard_back_button, self.wizard_next_button, self.wizard_zero_button, self.wizard_exit_button,
+    )
     for button in wizard_buttons:
       button.enabled = False
     try:
@@ -583,6 +587,8 @@ class MainForm(MainFormTemplate):
       self._show_error(result["message"])
       return False
 
+    # The wizard keeps its own cell list, so Back shows what was just saved.
+    cell["entry_quantity"] = result["entry_quantity"]
     if not advance:
       self._load_latest_counts()
       return True
@@ -849,16 +855,28 @@ class MainForm(MainFormTemplate):
   def wizard_plus_one_button_click(self, **event_args):
     self._set_wizard_quantity(self._wizard_quantity_value() + 1)
 
-  @handle("wizard_exit_button", "click")
-  def wizard_exit_button_click(self, **event_args):
+  def _save_wizard_edit(self):
     # Only save an edit: re-saving an untouched value would log a duplicate
     # entry under this user's initials.
+    if self._wizard_index >= len(self._wizard_cells):
+      return True
     _, _, cell = self._wizard_cells[self._wizard_index]
     quantity = self.wizard_quantity_box.text
-    if (quantity or "") != (cell["entry_quantity"] or ""):
-      if not self._save_wizard_step(quantity, advance=False):
-        return
-    self._set_active_tab("grid")
+    if (quantity or "") == (cell["entry_quantity"] or ""):
+      return True
+    return self._save_wizard_step(quantity, advance=False)
+
+  @handle("wizard_back_button", "click")
+  def wizard_back_button_click(self, **event_args):
+    if not self._save_wizard_edit():
+      return
+    self._wizard_index -= 1
+    self._show_wizard_step()
+
+  @handle("wizard_exit_button", "click")
+  def wizard_exit_button_click(self, **event_args):
+    if self._save_wizard_edit():
+      self._set_active_tab("grid")
 
   @handle("wizard_close_button", "click")
   def wizard_close_button_click(self, **event_args):
