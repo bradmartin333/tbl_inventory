@@ -71,3 +71,7 @@ class ParLevelRow(ParLevelRowTemplate):
   @handle("days_box", "pressed_enter")
   def days_box_pressed_enter(self, **event_args):
     self._save_if_changed()
+
+  @handle("plot_box", "change")
+  def plot_box_change(self, **event_args):
+    self.parent.raise_event("x-plot-row", row=self, checked=bool(self.plot_box.checked))

@@ -122,18 +122,18 @@ Large containers"></anvil-component>
           </div>
           <div class="analytics-card">
               <h3>On-par levels</h3>
-              <p class="setup-hint">Set the quantity you want on hand and how many days can pass between counts. Leave blank for no target. Each box saves when you leave it.</p>
+              <p class="setup-hint">Set the quantity you want on hand and how many days can pass between counts. Leave blank for no target. Each box saves when you leave it. Tick Plot to chart an item's history below.</p>
               <div class="par-level-heading">
-                  <span>Item</span><span>On hand</span><span>Par</span><span>Days</span>
+                  <span>Plot</span><span>Item</span><span>On hand</span><span>Par</span><span>Days</span>
               </div>
               <anvil-component type="RepeatingPanel" name="par_levels_panel" prop:item_template="TBL_Inventory.MainForm.ParLevelRow" prop:role="par-levels"></anvil-component>
           </div>
-          <div class="analytics-card">
+          <div class="analytics-card analytics-card-attached">
               <div class="analytics-card-header">
-                  <h3>Total over time</h3>
+                  <anvil-component type="Label" name="totals_title_label" prop:text="History over time" prop:role="analytics-title" prop:spacing_above="none" prop:spacing_below="none"></anvil-component>
                   <anvil-component type="DropDown" name="range_dropdown" prop:spacing_above="none" prop:spacing_below="none"></anvil-component>
               </div>
-              <p class="setup-hint">The column above, added up across every item in the section, as it stood at the end of each day.</p>
+              <anvil-component type="Label" name="totals_hint_label" prop:text="Each ticked item's count in the column above, as it stood at the end of each day." prop:role="setup-hint" prop:spacing_above="none" prop:spacing_below="none"></anvil-component>
               <anvil-component type="Plot" name="totals_plot" prop:height="320" prop:spacing_above="none" prop:spacing_below="none"></anvil-component>
               <anvil-component type="Label" name="totals_summary_label" prop:role="analytics-summary" prop:spacing_above="none" prop:spacing_below="none"></anvil-component>
               <anvil-component type="Label" name="totals_empty_label" prop:role="analytics-empty" prop:spacing_above="none" prop:spacing_below="none"></anvil-component>

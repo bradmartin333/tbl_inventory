@@ -625,6 +625,8 @@ def get_section_totals(table_key, days):
 
   dates = [first_day + timedelta(days=offset) for offset in range(days)]
   totals = {key: [None] * days for key in column_keys}
+  # The same walk, kept per cell, for plotting single items.
+  per_cell = {(row_key, column_key): [None] * days for row_key in row_keys for column_key in column_keys}
   next_entry = 0
   for index in range(days - 1, -1, -1):
     day_end = datetime.combine(dates[index], time.min) + timedelta(days=1)
@@ -636,7 +638,8 @@ def get_section_totals(table_key, days):
       else:
         values[key] = previous
       next_entry += 1
-    for (_, column_key), quantity in values.items():
+    for (row_key, column_key), quantity in values.items():
+      per_cell[(row_key, column_key)][index] = quantity
       # A column with no counted cell that day stays a gap, not a zero.
       totals[column_key][index] = (totals[column_key][index] or 0) + quantity
 
@@ -646,6 +649,10 @@ def get_section_totals(table_key, days):
     "series": [
       {"column_key": column["column_key"], "label": column["label"], "totals": totals[column["column_key"]]}
       for column in columns
+    ],
+    "cells": [
+      {"row_key": row_key, "column_key": column_key, "quantities": quantities}
+      for (row_key, column_key), quantities in per_cell.items()
     ],
   }
 
