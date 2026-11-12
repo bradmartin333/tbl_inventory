@@ -1,4 +1,5 @@
 <div anvil:dom-node="row" class="par-level-row">
+    <anvil-component type="CheckBox" name="plot_box" prop:role="par-plot" prop:spacing_above="none" prop:spacing_below="none" bind:checked="self.item['plot']"></anvil-component>
     <anvil-component type="Label" name="item_label" prop:role="par-item" prop:spacing_above="none" prop:spacing_below="none" bind:text="self.item['label']"></anvil-component>
     <anvil-component type="Label" name="quantity_label" prop:role="par-on-hand" prop:spacing_above="none" prop:spacing_below="none" bind:text="self.item['entry_quantity']"></anvil-component>
     <anvil-component type="TextBox" name="par_box" prop:placeholder="—" prop:role="par-input" prop:align="center" prop:spacing_above="none" prop:spacing_below="none" writeback:text="self.item['par_text']"></anvil-component>

@@ -808,8 +808,11 @@ input.anvil-role-matrix-quantity {
   gap: 10px;
 }
 
-.analytics-card > .setup-hint {
-  margin-bottom: 12px;
+.analytics-card > .setup-hint,
+.analytics-card > .anvil-role-setup-hint {
+  margin: 6px 0 12px;
+  color: var(--blank-muted);
+  font-size: 13px;
 }
 
 .anvil-role-analytics-empty {
@@ -863,7 +866,7 @@ input.anvil-role-matrix-quantity {
 .par-level-heading,
 .par-level-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 72px 88px 88px;
+  grid-template-columns: 40px minmax(0, 1fr) 72px 88px 88px;
   align-items: center;
   gap: 8px;
 }
@@ -876,13 +879,22 @@ input.anvil-role-matrix-quantity {
   font-weight: 700;
 }
 
-.par-level-heading > span:not(:first-child) {
+.par-level-heading > span:not(:nth-child(2)) {
   text-align: center;
 }
 
 .par-level-row {
   padding: 6px 0;
   border-bottom: 1px solid var(--blank-border);
+}
+
+.anvil-role-par-plot {
+  text-align: center;
+}
+
+.anvil-role-analytics-title {
+  font-size: 1.17em;
+  font-weight: 700;
 }
 
 .anvil-role-par-item {
@@ -1059,7 +1071,7 @@ input.anvil-role-par-input {
 
   .par-level-heading,
   .par-level-row {
-    grid-template-columns: minmax(0, 1fr) 52px 64px 64px;
+    grid-template-columns: 32px minmax(0, 1fr) 52px 64px 64px;
     gap: 6px;
   }
 

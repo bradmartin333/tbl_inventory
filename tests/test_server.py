@@ -365,6 +365,13 @@ class SectionTotalsTest(ServerTest):
     self.assertEqual(qty["totals"], [None] * 19 + [3] * 5 + [10] * 3 + [14] * 3)
     self.assertEqual(cases["totals"], [14] * 30)
 
+  def test_reports_each_cells_own_history(self):
+    log("A-r0", "A-c0", 3, None, 10)
+    log("A-r0", "A-c0", 7, 3, 2)
+    cells = {(c["row_key"], c["column_key"]): c["quantities"] for c in inv.get_section_totals("A", 30)["cells"]}
+    self.assertEqual(len(cells), 4)
+    self.assertEqual(cells[("A-r0", "A-c0")], [None] * 19 + [3] * 8 + [7] * 3)
+
   def test_entries_from_before_previous_quantity_use_the_cells_older_entry(self):
     # Both saved before entries kept what they replaced: 10 twenty days ago,
     # recounted to 7 five days ago. Only before the first is unknown.
