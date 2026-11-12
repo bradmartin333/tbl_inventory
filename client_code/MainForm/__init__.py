@@ -24,8 +24,9 @@ TOTALS_COLOR = "#2a78d6"
 ITEM_COLORS = ["#2a78d6", "#d9622b", "#2f9e6f", "#8a5cc2", "#c9a227", "#d6457a", "#3a9cae", "#6b655b"]
 
 
-TOTAL_HINT = "The column above, added up across every item in the section, as it stood at the end of each day."
-ITEM_HINT = "Each ticked item's count in the column above, as it stood at the end of each day. Untick them all to see the section total."
+PLOT_HINT = "Each ticked item's count in the column above, as it stood at the end of each day."
+PLOT_INSTRUCTIONS = "Tick the Plot box beside one or more items in the table above to chart their history here."
+ITEM_HINT = PLOT_HINT
 
 
 def _totals_layout():
@@ -333,6 +334,12 @@ class MainForm(MainFormTemplate):
       del self._totals_cache[key]
 
   def _show_totals(self):
+    if not self._plot_rows:
+      # Nothing to draw yet, so there's no need for the slow history read.
+      self.totals_title_label.text = "History over time"
+      self.totals_hint_label.text = PLOT_HINT
+      self._show_totals_empty(PLOT_INSTRUCTIONS)
+      return
     # The chart's history read is the one slow call here, so it runs once per
     # section and range until a count changes. It brings every column, so
     # picking another column redraws from the cache.
@@ -360,35 +367,7 @@ class MainForm(MainFormTemplate):
       column["label"] for column in self._analytics_table()["columns"]
       if column["column_key"] == self._column_key
     )
-    if self._plot_rows:
-      self._show_item_lines(totals, label)
-      return
-    self.totals_title_label.text = "Total over time"
-    self.totals_hint_label.text = TOTAL_HINT
-    series = next(
-      (series for series in totals["series"] if series["column_key"] == self._column_key), None
-    )
-    values = [value for value in series["totals"] if value is not None] if series else []
-    if not values:
-      # Name the column, so an empty one doesn't read as an empty section.
-      self._show_totals_empty(f"No {label} counts saved in this range yet.")
-      return
-    self.totals_plot.layout = _totals_layout()
-    self.totals_plot.data = [{
-      "type": "scatter",
-      "mode": "lines",
-      "name": label,
-      "x": totals["dates"],
-      "y": series["totals"],
-      "connectgaps": False,
-      "hovertemplate": "%{y:g}<extra></extra>",
-      "line": {"color": TOTALS_COLOR, "width": 2},
-    }]
-    self.totals_plot.visible = True
-    # The column picker and this line name the one series, so there's no legend.
-    self.totals_summary_label.text = f"Latest {label} total: {values[-1]:g}"
-    self.totals_summary_label.visible = True
-    self.totals_empty_label.visible = False
+    self._show_item_lines(totals, label)
 
   def _show_item_lines(self, totals, label):
     # One line per ticked item, for the column the picker shows.

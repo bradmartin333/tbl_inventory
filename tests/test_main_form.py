@@ -154,10 +154,15 @@ class AnalyticsTest(FormTest):
   def calls(self):
     return [call for call in state.calls if call[0] != "save_par_level"]
 
+  def tick(self, row_key, column_key="A-c0", checked=True):
+    self.form.par_levels_panel.raise_event(
+      "x-plot-row", row=ParRow(row_key, column_key), checked=checked
+    )
+
   def test_opens_on_the_grids_section_with_one_call(self):
     form = self.form
     self.assertEqual(form._active_tab, "analytics")
-    self.assertEqual(state.calls, [("get_section_totals", "A", 30)])
+    self.assertEqual(state.calls, [])
     self.assertEqual(form.section_dropdown.items, [("Freezer", "A"), ("Fridge", "B")])
     self.assertEqual(form.section_dropdown.selected_value, "A")
     self.assertEqual([row["label"] for row in form.par_levels_panel.items], ["Ice"])
@@ -165,21 +170,47 @@ class AnalyticsTest(FormTest):
     self.assertEqual(form.alerts_panel.items, [])
     self.assertTrue(form.alerts_empty_label.visible)
 
-  def test_chart_shows_the_chosen_columns_total(self):
+  def test_chart_starts_with_instructions_and_reads_nothing(self):
     form = self.form
+    self.assertFalse(form.totals_plot.visible)
+    self.assertTrue(form.totals_empty_label.visible)
+    self.assertIn("Tick the Plot box", form.totals_empty_label.text)
+
+  def test_ticked_items_are_plotted_one_line_each(self):
+    form = self.form
+    self.tick("A-r0")
+    self.assertEqual(state.calls, [("get_section_totals", "A", 30)])
     self.assertEqual(len(form.totals_plot.data), 1)
     trace = form.totals_plot.data[0]
-    self.assertEqual((trace["name"], trace["y"][-1], len(trace["x"])), ("Qty", 7, 30))
-    self.assertEqual(form.totals_summary_label.text, "Latest Qty total: 7")
+    self.assertEqual((trace["name"], trace["y"][-1], len(trace["x"])), ("Ice", 7, 30))
+    self.assertEqual(form.totals_summary_label.text, "Latest: Ice 7")
     self.assertFalse(form.totals_empty_label.visible)
+    self.tick("A-r0", checked=False)
+    self.assertFalse(form.totals_plot.visible)
+    self.assertIn("Tick the Plot box", form.totals_empty_label.text)
+
+  def test_ticks_stay_across_columns_and_clear_on_a_new_section(self):
+    form = self.form
+    form.section_dropdown.selected_value = "B"
+    form.section_dropdown_change()
+    self.tick("B-r0", "B-c0")
+    self.tick("B-r1", "B-c0")
+    self.assertEqual([t["name"] for t in form.totals_plot.data], ["Milk", "Eggs"])
+    form.column_dropdown.selected_value = "B-c1"
+    form.column_dropdown_change()
+    self.assertEqual([r["plot"] for r in form.par_levels_panel.items], [True, True])
+    form.section_dropdown.selected_value = "A"
+    form.section_dropdown_change()
+    self.assertEqual([r["plot"] for r in form.par_levels_panel.items], [False])
 
   def test_chart_with_no_counts_says_so(self):
     for cell in list(app_tables.inventory_cells.rows):
       cell.delete()
     self.form.refresh_button_click()
+    self.tick("A-r0")
     self.assertFalse(self.form.totals_plot.visible)
     self.assertTrue(self.form.totals_empty_label.visible)
-    self.assertEqual(self.form.totals_empty_label.text, "No Qty counts saved in this range yet.")
+    self.assertIn("No Qty counts saved", self.form.totals_empty_label.text)
 
   def test_an_empty_column_names_itself_not_the_section(self):
     for cell in list(app_tables.inventory_cells.rows):
@@ -188,18 +219,21 @@ class AnalyticsTest(FormTest):
     self.form.refresh_button_click()
     self.form.section_dropdown.selected_value = "B"
     self.form.section_dropdown_change()
-    self.assertEqual(self.form.totals_empty_label.text, "No Qty counts saved in this range yet.")
+    self.tick("B-r0", "B-c0")
+    self.assertIn("No Qty counts saved", self.form.totals_empty_label.text)
     self.form.column_dropdown.selected_value = "B-c1"
     self.form.column_dropdown_change()
     self.assertTrue(self.form.totals_plot.visible)
     self.assertFalse(self.form.totals_empty_label.visible)
 
   def test_each_draw_gets_its_own_layout(self):
+    self.tick("A-r0")
     self.form.totals_plot.layout["yaxis"]["range"] = [0, 999]
     self.form.range_dropdown_change()
     self.assertNotIn("range", self.form.totals_plot.layout["yaxis"])
 
   def test_reopening_uses_the_cached_chart(self):
+    self.tick("A-r0")
     self.form.grid_tab_button_click()
     state.calls.clear()
     self.form.analytics_tab_button_click()
@@ -210,20 +244,22 @@ class AnalyticsTest(FormTest):
     state.calls.clear()
     form.section_dropdown.selected_value = "B"
     form.section_dropdown_change()
+    self.tick("B-r0", "B-c0")
     self.assertEqual(state.calls, [("get_section_totals", "B", 30)])
     self.assertEqual(form.column_dropdown.items, [("Qty", "B-c0"), ("Cases", "B-c1")])
-    self.assertEqual(form.totals_summary_label.text, "Latest Qty total: 14")
+    self.assertEqual(form.totals_summary_label.text, "Latest: Milk 7")
     state.calls.clear()
     form.column_dropdown.selected_value = "B-c1"
     form.column_dropdown_change()
     self.assertEqual(state.calls, [])
     self.assertEqual([(r["label"], r["column_key"]) for r in form.par_levels_panel.items], [("Milk", "B-c1"), ("Eggs", "B-c1")])
-    self.assertEqual(form.totals_plot.data[0]["name"], "Cases")
+    self.assertEqual(form.totals_title_label.text, "Cases over time")
     form.range_dropdown.selected_value = 90
     form.range_dropdown_change()
     self.assertEqual(state.calls, [("get_section_totals", "B", 90)])
 
   def test_a_new_count_or_refresh_drops_the_cached_chart(self):
+    self.tick("A-r0")
     state.calls.clear()
     self.form._save_grid_cell(Cell("A-r0", "A-c0"), "3")
     self.assertEqual(state.calls[-1], ("get_section_totals", "A", 30))
@@ -234,6 +270,7 @@ class AnalyticsTest(FormTest):
 
   def test_a_chart_fetched_across_a_new_count_is_not_kept(self):
     form = self.form
+    self.tick("A-r0")
     form.range_dropdown.selected_value = 90
 
     def count_lands_meanwhile(table_key, days):
@@ -315,6 +352,7 @@ class AnalyticsTest(FormTest):
     form.section_dropdown.selected_value = "B"
     state.routes["get_section_totals"] = boom
     form.section_dropdown_change()
+    self.tick("B-r0", "B-c0")
     self.assertEqual(state.notifications[-1], self.mf.TOTALS_FAILED["message"])
     self.assertEqual(form.totals_empty_label.text, self.mf.TOTALS_NOT_LOADED)
     # Moving through columns for par levels doesn't keep calling and warning.

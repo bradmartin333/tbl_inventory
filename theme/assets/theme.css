@@ -795,6 +795,12 @@ input.anvil-role-matrix-quantity {
   border-top: none;
 }
 
+.analytics-card-attached {
+  margin-top: 16px;
+  padding-top: 0;
+  border-top: none;
+}
+
 .analytics-card h3 {
   margin: 0;
   font-size: 18px;
