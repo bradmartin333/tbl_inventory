@@ -81,7 +81,7 @@ name: TBL Inventory
 package_name: TBL_Inventory
 runtime_options:
   client_version: '3'
-  server_spec: {base: python314}
+  server_spec: {base: python310-standard}
   version: 3
 services:
 - client_config: {enable_v2: true}
