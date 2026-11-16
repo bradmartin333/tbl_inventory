@@ -725,7 +725,8 @@ class AdminTest(FormTest):
     with open(os.path.join(CLIENT_DIR, "MainForm", "form_template.html")) as f:
       html = f.read()
     self.assertNotIn("email_panel", html)
-    self.assertLess(html.index('name="admin_panel"'), html.index("Admin roles and permissions"))
+    self.assertIn('name="admin_panel"', html)
+    self.assertNotIn("future-feature-card", html)
     self.assertEqual(self.form._active_tab, "admin")
     self.assertTrue(self.form.admin_panel.visible)
     self.assertFalse(self.form.admin_tab_button.enabled)
