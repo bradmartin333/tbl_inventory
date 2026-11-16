@@ -187,14 +187,12 @@ class MainForm(MainFormTemplate):
       "guided": self.guided_panel,
       "customize": self.table_editor_panel,
       "analytics": self.analytics_panel,
-      "email": self.email_panel,
     }
     buttons = {
       "grid": self.grid_tab_button,
       "guided": self.guided_tab_button,
       "customize": self.customize_tab_button,
       "analytics": self.analytics_tab_button,
-      "email": self.email_tab_button,
     }
 
     for tab_name, panel in panels.items():
@@ -702,10 +700,6 @@ class MainForm(MainFormTemplate):
   def column_dropdown_change(self, **event_args):
     self._column_key = self.column_dropdown.selected_value
     self._render_column()
-
-  @handle("email_tab_button", "click")
-  def email_tab_button_click(self, **event_args):
-    self._set_active_tab("email")
 
   @handle("logout_button", "click")
   def logout_button_click(self, **event_args):

@@ -392,51 +392,6 @@ input.anvil-role-wizard-quantity {
   margin-bottom: 18px;
 }
 
-/* Planned-feature placeholders */
-
-.future-feature-card {
-  max-width: 760px;
-  padding: 8px 4px;
-}
-
-/* A panel with more than one planned feature rules them apart. */
-.future-feature-card + .future-feature-card {
-  margin-top: 20px;
-  padding-top: 20px;
-  border-top: 1px solid var(--blank-border);
-}
-
-.future-feature-card .inventory-kicker {
-  margin: 0 0 8px;
-  color: var(--blank-primary);
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-}
-
-.future-feature-card h2 {
-  margin: 0 0 6px;
-  font-size: 22px;
-}
-
-.future-feature-card > p:not(.inventory-kicker) {
-  max-width: 720px;
-  margin: 0;
-  color: var(--blank-muted);
-}
-
-.feature-status {
-  display: inline-block;
-  margin-top: 18px;
-  padding: 5px 10px;
-  border-radius: 999px;
-  background: var(--blank-surface-muted);
-  color: var(--blank-primary-dark);
-  font-size: 13px;
-  font-weight: 700;
-}
-
 /* Inventory matrix */
 
 /* The section card supplies the border, so the grid sits flush inside it. */

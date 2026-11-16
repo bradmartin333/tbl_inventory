@@ -1,7 +1,6 @@
-import os
 import unittest
 
-from tests.support import CLIENT_DIR, Component, Event, add_section, app_tables, load_form, load_server, state
+from tests.support import Component, Event, add_section, app_tables, load_form, load_server, state
 
 
 inv = load_server()
@@ -367,11 +366,6 @@ class AnalyticsTest(FormTest):
     form.range_dropdown_change()
     self.assertEqual(state.calls, [("get_section_totals", "B", 30)])
     self.assertTrue(form.totals_plot.visible)
-
-  def test_admin_roles_card_lives_on_the_email_tab(self):
-    with open(os.path.join(CLIENT_DIR, "MainForm", "form_template.html")) as f:
-      html = f.read()
-    self.assertLess(html.index('name="email_panel"'), html.index("Admin roles and permissions"))
 
 
 class CustomizeTest(FormTest):
