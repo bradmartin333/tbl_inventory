@@ -1,6 +1,8 @@
+import anvil
 import anvil.users
 from datetime import datetime, time, timedelta
 import hashlib
+import json
 import math
 import uuid
 
@@ -678,3 +680,276 @@ def backfill_previous_quantities():
         filled += 1
   print(f"Filled previous_quantity on {filled} history entries.")
   return filled
+
+
+# Admin: export and import
+
+EXPORT_FORMAT = "tbl-inventory-export"
+EXPORT_VERSION = 1
+# Every inventory table and its columns, as anvil.yaml declares them. An
+# import replaces these outright.
+EXPORT_TABLES = {
+  "inventory_tables": {
+    "table_key": "string", "label": "string", "sort_order": "number", "active": "bool",
+  },
+  "inventory_rows": {
+    "row_key": "string", "table_key": "string", "label": "string", "sort_order": "number",
+    "active": "bool",
+  },
+  "inventory_columns": {
+    "column_key": "string", "table_key": "string", "label": "string", "sort_order": "number",
+    "active": "bool",
+  },
+  "inventory_cells": {
+    "row_key": "string", "column_key": "string", "quantity": "number", "entered_by": "string",
+    "entered_at": "datetime", "par_quantity": "number", "max_days": "number",
+  },
+  "inventory_history": {
+    "entry_id": "string", "table_key": "string", "table_label": "string", "row_key": "string",
+    "row_label": "string", "column_key": "string", "column_label": "string", "quantity": "number",
+    "entered_by": "string", "entered_at": "datetime", "previous_quantity": "number",
+  },
+}
+# Within each table, the column no two rows may share.
+EXPORT_UNIQUE_KEYS = {
+  "inventory_tables": "table_key",
+  "inventory_rows": "row_key",
+  "inventory_columns": "column_key",
+  "inventory_history": "entry_id",
+}
+# The user columns that travel. Password hashes, login tokens and the like
+# stay behind: an added user sets a password with Activate account, which
+# needs them enabled and with initials, as these carry over.
+EXPORT_USER_COLUMNS = {
+  "email": "string", "enabled": "bool", "initials": "string", "signed_up": "datetime",
+}
+# How many new users' emails the import dialog lists by name.
+PREVIEW_USER_NAMES = 10
+MAX_IMPORT_BYTES = 50 * 1024 * 1024
+IMPORT_CONFIRM_WORD = "REPLACE"
+NOT_AN_EXPORT_MESSAGE = (
+  "That file isn't an inventory export from this app. Nothing was changed. "
+  "Choose a file made with Export all data."
+)
+IMPORT_NEEDS_INITIALS_MESSAGE = (
+  "Your account needs initials (1–5 letters) before it can import data. "
+  "Ask an admin to add them, then reload this page."
+)
+
+
+def _export_value(value):
+  return value.isoformat() if isinstance(value, datetime) else value
+
+
+def _summary(tables):
+  # {table name: rows} -> the counts a person would recognise.
+  return {
+    "sections": len(tables["inventory_tables"]),
+    "items": len(tables["inventory_rows"]),
+    "columns": len(tables["inventory_columns"]),
+    "counts": len([cell for cell in tables["inventory_cells"] if cell["quantity"] is not None]),
+    "history": len(tables["inventory_history"]),
+  }
+
+
+def _summary_text(summary):
+  return ", ".join([
+    _plural(summary["sections"], "section"),
+    _plural(summary["items"], "item"),
+    _plural(summary["columns"], "column"),
+    _plural(summary["counts"], "current count"),
+    f"{summary['history']} history {'entry' if summary['history'] == 1 else 'entries'}",
+  ])
+
+
+def _email_key(email):
+  return (email or "").strip().casefold()
+
+
+def _new_users(users):
+  # The file's users whose email this app doesn't have yet, in file order.
+  existing = {_email_key(user["email"]) for user in app_tables.users.search()}
+  return [user for user in users if _email_key(user["email"]) not in existing]
+
+
+def _users_text(new_users, total):
+  if not new_users:
+    return f"none of the file's {_plural(total, 'user')} are new; existing accounts are left as they are"
+  names = [user["email"] for user in new_users[:PREVIEW_USER_NAMES]]
+  more = len(new_users) - len(names)
+  listed = ", ".join(names) + (f" and {more} more" if more else "")
+  kept = total - len(new_users)
+  return (
+    f"{_plural(len(new_users), 'new user')} added ({listed})"
+    + (f"; {kept} already here {'is' if kept == 1 else 'are'} left as they are" if kept else "")
+  )
+
+
+def _current_tables():
+  return {
+    name: [
+      {column: _export_value(row[column]) for column in columns}
+      for row in getattr(app_tables, name).search()
+    ]
+    for name, columns in EXPORT_TABLES.items()
+  }
+
+
+@anvil.server.callable(require_user=True)
+def export_inventory():
+  # Everything the inventory tables hold, as one JSON file to download.
+  now = datetime.now()
+  data = {
+    "format": EXPORT_FORMAT,
+    "version": EXPORT_VERSION,
+    "exported_at": now.isoformat(timespec="seconds"),
+    "exported_by": _user_initials(anvil.users.get_user()),
+    "tables": _current_tables(),
+    "users": [
+      {column: _export_value(user[column]) for column in EXPORT_USER_COLUMNS}
+      for user in app_tables.users.search()
+    ],
+  }
+  content = json.dumps(data, indent=1, allow_nan=False).encode("utf-8")
+  return anvil.BlobMedia(
+    "application/json", content, name=f"tbl-inventory-{now.strftime('%Y-%m-%d-%H%M')}.json"
+  )
+
+
+def _import_value(value, kind):
+  # The stored value, or raises ValueError for one the column can't hold.
+  if value is None:
+    return None
+  if kind == "string" and isinstance(value, str):
+    return value
+  if kind == "bool" and isinstance(value, bool):
+    return value
+  if kind == "number" and isinstance(value, (int, float)) and not isinstance(value, bool):
+    if math.isfinite(value):
+      return value
+  if kind == "datetime" and isinstance(value, str):
+    return datetime.fromisoformat(value)
+  raise ValueError(value)
+
+
+def _read_import(media):
+  # Returns (data, {table name: rows ready to add}, [users]), or an error message.
+  # Checks the whole file before anything is written.
+  try:
+    content = media.get_bytes()
+  except Exception:
+    return "Choose an export file to import."
+  if len(content) > MAX_IMPORT_BYTES:
+    return "That file is too large to import. Nothing was changed."
+  try:
+    data = json.loads(content.decode("utf-8"))
+  except (UnicodeDecodeError, ValueError):
+    return NOT_AN_EXPORT_MESSAGE
+  if not isinstance(data, dict) or data.get("format") != EXPORT_FORMAT:
+    return NOT_AN_EXPORT_MESSAGE
+  if not isinstance(data.get("version"), int) or data["version"] > EXPORT_VERSION:
+    return "That file came from a newer version of this app, so it can't be imported here."
+  tables = data.get("tables")
+  if not isinstance(tables, dict):
+    return NOT_AN_EXPORT_MESSAGE
+
+  clean = {}
+  for name, columns in EXPORT_TABLES.items():
+    rows = tables.get(name)
+    if not isinstance(rows, list):
+      return f"That file is missing its {name} table, so it can't be imported. Nothing was changed."
+    clean_rows = []
+    for number, row in enumerate(rows, start=1):
+      problem = f"Row {number} of {name} in that file is damaged, so it can't be imported. Nothing was changed."
+      if not isinstance(row, dict) or not set(row) <= set(columns):
+        return problem
+      try:
+        clean_rows.append({column: _import_value(row.get(column), kind) for column, kind in columns.items()})
+      except ValueError:
+        return problem
+    key_name = EXPORT_UNIQUE_KEYS.get(name)
+    if key_name:
+      keys = [row[key_name] for row in clean_rows]
+      if None in keys or len(set(keys)) != len(keys):
+        return f"Two rows of {name} in that file share a key, so it can't be imported. Nothing was changed."
+    clean[name] = clean_rows
+
+  # Exports from before users travelled have none, which is fine.
+  users = data.get("users", [])
+  if not isinstance(users, list):
+    return NOT_AN_EXPORT_MESSAGE
+  clean_users = []
+  for number, user in enumerate(users, start=1):
+    problem = f"User {number} in that file is damaged, so it can't be imported. Nothing was changed."
+    if not isinstance(user, dict) or not set(user) <= set(EXPORT_USER_COLUMNS):
+      return problem
+    try:
+      clean_user = {
+        column: _import_value(user.get(column), kind) for column, kind in EXPORT_USER_COLUMNS.items()
+      }
+    except ValueError:
+      return problem
+    if not _email_key(clean_user["email"]):
+      return problem
+    clean_user["email"] = clean_user["email"].strip()
+    clean_users.append(clean_user)
+  if len({_email_key(user["email"]) for user in clean_users}) != len(clean_users):
+    return "Two users in that file share an email, so it can't be imported. Nothing was changed."
+  return data, clean, clean_users
+
+
+def _import_preview(data, tables, users):
+  exported_at = data.get("exported_at")
+  try:
+    exported_text = datetime.fromisoformat(exported_at).strftime("%b %d, %Y at %I:%M %p")
+  except (TypeError, ValueError):
+    exported_text = "at an unknown time"
+  exported_by = data.get("exported_by")
+  return {
+    "ok": True,
+    "current_text": _summary_text(_summary(_current_tables())),
+    "incoming_text": _summary_text(_summary(tables)),
+    "users_text": _users_text(_new_users(users), len(users)),
+    "exported_text": exported_text + (f" by {exported_by}" if isinstance(exported_by, str) else ""),
+    "confirm_word": IMPORT_CONFIRM_WORD,
+  }
+
+
+@anvil.server.callable(require_user=True)
+def preview_inventory_import(media):
+  # Checks a file and says what importing it would replace. Writes nothing.
+  if _user_initials(anvil.users.get_user()) is None:
+    return {"ok": False, "message": IMPORT_NEEDS_INITIALS_MESSAGE}
+  read = _read_import(media)
+  if isinstance(read, str):
+    return {"ok": False, "message": read}
+  return _import_preview(*read)
+
+
+@anvil.server.callable(require_user=True)
+@in_transaction
+def import_inventory(media, confirm_word):
+  # Replaces every inventory table with the file's contents, all or nothing.
+  if _user_initials(anvil.users.get_user()) is None:
+    return {"ok": False, "message": IMPORT_NEEDS_INITIALS_MESSAGE}
+  if confirm_word != IMPORT_CONFIRM_WORD:
+    return {"ok": False, "message": f"Type {IMPORT_CONFIRM_WORD} to confirm the import. Nothing was changed."}
+  read = _read_import(media)
+  if isinstance(read, str):
+    return {"ok": False, "message": read}
+  _, tables, users = read
+  for name, rows in tables.items():
+    table = getattr(app_tables, name)
+    table.delete_all_rows()
+    if rows:
+      table.add_rows(rows)
+  # Users are only ever added: anyone already here, the importer included,
+  # keeps their password, initials and settings.
+  added = _new_users(users)
+  if added:
+    app_tables.users.add_rows(added)
+  return {
+    "ok": True,
+    "summary_text": _summary_text(_summary(tables)),
+    "users_added": len(added),
+  }

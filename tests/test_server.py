@@ -1,9 +1,10 @@
 import contextlib
 from datetime import datetime, time, timedelta
 import io
+import json
 import unittest
 
-from tests.support import add_section, app_tables, load_server, state
+from tests.support import BlobMedia, add_section, app_tables, load_server, state
 
 
 inv = load_server()
@@ -461,6 +462,183 @@ class ActivateAccountTest(ServerTest):
       with self.subTest(email=email):
         self.assertFalse(inv.activate_account(email)["ok"])
     self.assertEqual(state.reset_emails, [])
+
+
+def inventory_dump():
+  # Every inventory column, set or not: an unset one reads as None, as in Anvil.
+  return inv._current_tables()
+
+
+def export_file(**changes):
+  # The current export as parsed JSON, with top-level keys changed.
+  data = json.loads(inv.export_inventory().get_bytes())
+  data.update(changes)
+  return data
+
+
+def as_file(data):
+  return BlobMedia("application/json", json.dumps(data).encode(), name="backup.json")
+
+
+class ExportImportTest(ServerTest):
+  def setUp(self):
+    super().setUp()
+    add_section("A", "Freezer", rows=("Ice", "Peas"), cols=("Qty", "Bags"))
+    inv.save_grid_cell("A-r0", "A-c0", "3")
+    inv.save_par_level("A-r1", "A-c1", "2", "7")
+
+  def test_export_holds_every_inventory_table_and_users_without_secrets(self):
+    state.user.update(password_hash="secret-hash", remembered_logins={"token": "secret-token"})
+    media = inv.export_inventory()
+    self.assertEqual(media.content_type, "application/json")
+    self.assertTrue(media.name.startswith("tbl-inventory-") and media.name.endswith(".json"))
+    data = json.loads(media.get_bytes())
+    self.assertEqual((data["format"], data["version"], data["exported_by"]), (inv.EXPORT_FORMAT, 1, "BM"))
+    self.assertEqual(set(data["tables"]), set(inv.EXPORT_TABLES))
+    self.assertNotIn("users", data["tables"])
+    self.assertEqual(data["users"], [{"email": "bm@example.com", "enabled": True, "initials": "BM", "signed_up": None}])
+    self.assertNotIn(b"secret", media.get_bytes())
+    self.assertEqual(len(data["tables"]["inventory_history"]), 1)
+
+  def test_export_columns_match_the_schema(self):
+    from tests.support import read_schema
+    schema = read_schema()
+    for name, columns in inv.EXPORT_TABLES.items():
+      with self.subTest(table=name):
+        self.assertEqual(set(columns), schema[name])
+
+  def test_import_replaces_everything_with_the_file(self):
+    before = inventory_dump()
+    backup = inv.export_inventory()
+    add_section("B", "Fridge", order=2)
+    inv.save_grid_cell("A-r0", "A-c0", "9")
+    result = inv.import_inventory(backup, "REPLACE")
+    self.assertTrue(result["ok"])
+    self.assertIn("1 section, 2 items, 2 columns, 4 current counts, 1 history entry", result["summary_text"])
+    self.assertEqual(inventory_dump(), before)
+    self.assertEqual(len(app_tables.users.rows), 1)
+    self.assertEqual(inv.get_inventory_grid()["tables"][0]["rows"][0]["cells"][0]["entry_quantity"], "3")
+
+  def test_preview_describes_both_sides_and_writes_nothing(self):
+    backup = inv.export_inventory()
+    add_section("B", "Fridge", order=2)
+    before = inventory_dump()
+    preview = inv.preview_inventory_import(backup)
+    self.assertTrue(preview["ok"])
+    self.assertTrue(preview["current_text"].startswith("2 sections, 3 items, 3 columns"))
+    self.assertTrue(preview["incoming_text"].startswith("1 section, 2 items, 2 columns"))
+    self.assertIn("by BM", preview["exported_text"])
+    self.assertEqual(preview["confirm_word"], "REPLACE")
+    self.assertEqual(inventory_dump(), before)
+
+  def test_refuses_without_the_confirm_word_or_initials(self):
+    backup = inv.export_inventory()
+    add_section("B", "Fridge", order=2)
+    before = inventory_dump()
+    for word in [None, "", "replace", "yes"]:
+      with self.subTest(word=word):
+        self.assertFalse(inv.import_inventory(backup, word)["ok"])
+    state.user["initials"] = None
+    self.assertFalse(inv.preview_inventory_import(backup)["ok"])
+    self.assertFalse(inv.import_inventory(backup, "REPLACE")["ok"])
+    self.assertEqual(inventory_dump(), before)
+
+  def test_refuses_files_that_are_not_good_exports(self):
+    good = export_file()
+    def changed(table, change):
+      data = json.loads(json.dumps(good))
+      change(data["tables"][table])
+      return data
+    bad_files = {
+      "not json": BlobMedia("text/plain", b"hello", name="x.txt"),
+      "not utf-8": BlobMedia("text/plain", b"\xff\xfe", name="x.txt"),
+      "a list": as_file([]),
+      "wrong format": as_file(export_file(format="something-else")),
+      "newer version": as_file(export_file(version=2)),
+      "no tables": as_file(export_file(tables=None)),
+      "missing table": as_file(export_file(tables={
+        name: rows for name, rows in good["tables"].items() if name != "inventory_rows"
+      })),
+      "unknown column": as_file(changed("inventory_rows", lambda rows: rows[0].update(colour="red"))),
+      "wrong type": as_file(changed("inventory_cells", lambda rows: rows[0].update(quantity="3"))),
+      "bad date": as_file(changed("inventory_history", lambda rows: rows[0].update(entered_at="soon"))),
+      "duplicate key": as_file(changed("inventory_rows", lambda rows: rows.append(dict(rows[0])))),
+      "missing key": as_file(changed("inventory_tables", lambda rows: rows[0].pop("table_key"))),
+      "no file": None,
+    }
+    before = inventory_dump()
+    for label, media in bad_files.items():
+      with self.subTest(file=label):
+        self.assertFalse(inv.preview_inventory_import(media)["ok"])
+        self.assertFalse(inv.import_inventory(media, "REPLACE")["ok"])
+    self.assertEqual(inventory_dump(), before)
+
+  def test_import_adds_only_users_not_already_here(self):
+    app_tables.users.add_row(email="cook@example.com", enabled=True, initials="CK")
+    app_tables.users.add_row(email="old@example.com", enabled=False, initials="OL")
+    backup = export_file()
+    # This app knows BM (with other initials) and nobody else.
+    state.reset()
+    state.user.update(initials="XY", password_hash="mine")
+    backup["users"][0]["initials"] = "ZZ"
+    backup["users"].append({"email": " New@Example.com ", "enabled": True, "initials": "NW"})
+    preview = inv.preview_inventory_import(as_file(backup))
+    self.assertEqual(
+      preview["users_text"],
+      "3 new users added (cook@example.com, old@example.com, New@Example.com); "
+      "1 already here is left as they are",
+    )
+    result = inv.import_inventory(as_file(backup), "REPLACE")
+    self.assertEqual(result["users_added"], 3)
+    users = {user["email"]: user for user in app_tables.users.rows}
+    self.assertEqual(sorted(users), ["New@Example.com", "bm@example.com", "cook@example.com", "old@example.com"])
+    # The importer's own account is untouched.
+    self.assertEqual((users["bm@example.com"]["initials"], users["bm@example.com"]["password_hash"]), ("XY", "mine"))
+    self.assertEqual((users["old@example.com"]["enabled"], users["old@example.com"]["initials"]), (False, "OL"))
+    self.assertIsNone(users["cook@example.com"]["password_hash"])
+    # Added users can activate their accounts.
+    self.assertEqual(inv.activate_account("cook@example.com"), {"ok": True})
+    # Importing again adds nobody twice.
+    self.assertEqual(inv.import_inventory(as_file(backup), "REPLACE")["users_added"], 0)
+    self.assertEqual(len(app_tables.users.rows), 4)
+    self.assertIn("none of the file's 4 users are new", inv.preview_inventory_import(as_file(backup))["users_text"])
+
+  def test_preview_lists_only_the_first_few_new_users(self):
+    users = [{"email": f"u{i}@example.com"} for i in range(inv.PREVIEW_USER_NAMES + 3)]
+    preview = inv.preview_inventory_import(as_file(export_file(users=users)))
+    self.assertTrue(preview["users_text"].startswith(f"{len(users)} new users added (u0@example.com, "))
+    self.assertTrue(preview["users_text"].endswith(" and 3 more)"))
+
+  def test_exports_without_users_still_import(self):
+    backup = export_file()
+    del backup["users"]
+    result = inv.import_inventory(as_file(backup), "REPLACE")
+    self.assertTrue(result["ok"])
+    self.assertEqual(result["users_added"], 0)
+
+  def test_refuses_damaged_users(self):
+    bad_users = {
+      "not a list": {"email": "a@example.com"},
+      "not a dict": ["a@example.com"],
+      "no email": [{"initials": "AB"}],
+      "blank email": [{"email": "  "}],
+      "password hash": [{"email": "a@example.com", "password_hash": "x"}],
+      "wrong type": [{"email": "a@example.com", "enabled": "yes"}],
+      "same email twice": [{"email": "a@example.com"}, {"email": "A@example.com "}],
+    }
+    before = inventory_dump()
+    for label, users in bad_users.items():
+      with self.subTest(users=label):
+        media = as_file(export_file(users=users))
+        self.assertFalse(inv.preview_inventory_import(media)["ok"])
+        self.assertFalse(inv.import_inventory(media, "REPLACE")["ok"])
+    self.assertEqual(inventory_dump(), before)
+    self.assertEqual(len(app_tables.users.rows), 1)
+
+  def test_an_empty_export_imports_to_a_fresh_default_grid(self):
+    empty = export_file(tables={name: [] for name in inv.EXPORT_TABLES})
+    self.assertTrue(inv.import_inventory(as_file(empty), "REPLACE")["ok"])
+    self.assertEqual([t["label"] for t in inv.get_inventory_grid()["tables"]], [inv.DEFAULT_TABLE])
 
 
 if __name__ == "__main__":

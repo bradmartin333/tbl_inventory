@@ -108,6 +108,12 @@ class Table:
     self.rows.append(row)
     return row
 
+  def add_rows(self, rows):
+    return [self.add_row(**values) for values in rows]
+
+  def delete_all_rows(self):
+    self.rows = []
+
 
 class AppTables:
   def __init__(self, schema):
@@ -218,6 +224,8 @@ class Component:
     self.parent = None
     self.focused = False
     self.handlers = {}
+    self.components = []
+    self.cleared = 0
     for key, value in properties.items():
       setattr(self, key, value)
 
@@ -225,7 +233,11 @@ class Component:
     self.focused = True
 
   def add_component(self, component):
-    pass
+    self.components.append(component)
+
+  def clear(self):
+    # FileLoader.clear()
+    self.cleared += 1
 
   def add_event_handler(self, event, handler):
     self.handlers[event] = handler
@@ -278,6 +290,10 @@ class State:
     self.confirm_answers = []
     self.confirms = []
     self.alerts = []
+    # Queue answers for alert(): a value, or a function of the dialog's
+    # content (to type into it) returning one. None when nothing is queued.
+    self.alert_answers = []
+    self.downloads = []
     self.notifications = []
     # Client calls by name; anything not here goes to the server module.
     self.routes = {}
@@ -310,7 +326,24 @@ def _confirm(message, **kwargs):
 
 def _alert(message, **kwargs):
   state.alerts.append(message)
-  return None
+  if not state.alert_answers:
+    return None
+  answer = state.alert_answers.pop(0)
+  return answer(message) if callable(answer) else answer
+
+
+class BlobMedia:
+  def __init__(self, content_type, content, name=None):
+    self.content_type = content_type
+    self.content = content
+    self.name = name
+
+  def get_bytes(self):
+    return self.content
+
+
+def _download(media):
+  state.downloads.append(media)
 
 
 def _handle(component_name, event_name):
@@ -362,6 +395,10 @@ def _install():
   anvil.alert = _alert
   anvil.Notification = Notification
   anvil.TextBox = anvil.Label = anvil.ColumnPanel = Component
+  anvil.BlobMedia = BlobMedia
+
+  media = types.ModuleType("anvil.media")
+  media.download = _download
 
   server = types.ModuleType("anvil.server")
   server.callable = _callable
@@ -391,7 +428,8 @@ def _install():
   js.window = None
 
   anvil.server, anvil.users, anvil.tables, anvil.js = server, users, tables, js
-  for module in (anvil, server, users, tables, query, js):
+  anvil.media = media
+  for module in (anvil, server, users, tables, query, js, media):
     sys.modules[module.__name__] = module
 
   # The app package, laid out as the repo's own __init__.py lays it out.

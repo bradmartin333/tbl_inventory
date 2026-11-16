@@ -1,7 +1,7 @@
 import os
 import unittest
 
-from tests.support import CLIENT_DIR, Component, Event, add_section, app_tables, load_form, load_server, state
+from tests.support import CLIENT_DIR, BlobMedia, Component, Event, add_section, app_tables, load_form, load_server, state
 
 
 inv = load_server()
@@ -368,10 +368,6 @@ class AnalyticsTest(FormTest):
     self.assertEqual(state.calls, [("get_section_totals", "B", 30)])
     self.assertTrue(form.totals_plot.visible)
 
-  def test_admin_roles_card_lives_on_the_email_tab(self):
-    with open(os.path.join(CLIENT_DIR, "MainForm", "form_template.html")) as f:
-      html = f.read()
-    self.assertLess(html.index('name="email_panel"'), html.index("Admin roles and permissions"))
 
 
 class CustomizeTest(FormTest):
@@ -699,6 +695,115 @@ class GuidedEntryTest(FormTest):
     form.wizard_quantity_box.text = "abc"
     form.wizard_plus_one_button_click()
     self.assertEqual(form.wizard_quantity_box.text, "1")
+
+
+def type_word(word, choice="replace"):
+  # An alert answer that types into the import dialog's box, then presses a button.
+  def answer(panel):
+    box = next(c for c in panel.components if getattr(c, "placeholder", None))
+    box.text = word
+    return choice
+  return answer
+
+
+class AdminTest(FormTest):
+  def setUp(self):
+    super().setUp()
+    self.form.admin_tab_button_click()
+    app_tables.users.add_row(email="cook@example.com", enabled=True, initials="CK")
+    self.backup = inv.export_inventory()
+    app_tables.users.rows[-1].delete()
+    add_section("C", "Bar", order=3)
+    self.form.refresh_button_click()
+    self.before = inv._current_tables()
+
+  def import_backup(self, *answers):
+    state.alert_answers = list(answers)
+    self.form.import_loader_change(file=self.backup)
+
+  def test_admin_tab_replaces_the_email_tab(self):
+    with open(os.path.join(CLIENT_DIR, "MainForm", "form_template.html")) as f:
+      html = f.read()
+    self.assertNotIn("email_panel", html)
+    self.assertLess(html.index('name="admin_panel"'), html.index("Admin roles and permissions"))
+    self.assertEqual(self.form._active_tab, "admin")
+    self.assertTrue(self.form.admin_panel.visible)
+    self.assertFalse(self.form.admin_tab_button.enabled)
+    self.assertFalse(self.form.grid_entry_panel.visible)
+
+  def test_export_downloads_the_file(self):
+    self.form.export_button_click()
+    self.assertEqual(len(state.downloads), 1)
+    self.assertTrue(state.downloads[0].name.endswith(".json"))
+    state.routes["export_inventory"] = boom
+    self.form.export_button_click()
+    self.assertEqual(state.notifications[-1], self.mf.EXPORT_FAILED)
+    self.assertEqual(len(state.downloads), 1)
+
+  def test_cancel_changes_nothing(self):
+    users = len(app_tables.users.rows)
+    self.import_backup(None)
+    dialog = state.alerts[-1]
+    text = dialog.components[0].text
+    self.assertIn("deletes ALL inventory data", text)
+    self.assertIn("can't be undone", text)
+    self.assertIn("Deleted now: 3 sections", text)
+    self.assertIn("Imported: 2 sections", text)
+    self.assertIn("Users: 1 new user added (cook@example.com); 1 already here is left as they are", text)
+    self.assertNotIn("import_inventory", [call[0] for call in state.calls])
+    self.assertEqual(inv._current_tables(), self.before)
+    self.assertEqual(self.form.import_loader.cleared, 1)
+    self.assertEqual(len(app_tables.users.rows), users)
+
+  def test_wrong_word_asks_again(self):
+    self.import_backup(type_word("replace"), type_word("REPLACE", None))
+    self.assertEqual(len(state.alerts), 2)
+    self.assertIn("Type REPLACE in capitals", state.alerts[-1].components[2].text)
+    self.assertTrue(state.alerts[-1].components[2].visible)
+    self.assertEqual(inv._current_tables(), self.before)
+
+  def test_can_export_a_backup_before_replacing(self):
+    self.import_backup("export", type_word("REPLACE"))
+    self.assertEqual(len(state.downloads), 1)
+    # The backup holds what was there before the import.
+    self.assertIn(b"Bar", state.downloads[0].get_bytes())
+    self.assertEqual([t["label"] for t in self.form._snapshot["tables"]], ["Freezer", "Fridge"])
+    self.assertTrue(state.alerts[-1].startswith("The app now holds"))
+    self.assertIn("Added 1 user account. It needs to choose Activate account", state.alerts[-1])
+    self.assertEqual(len(app_tables.users.rows), 2)
+
+  def test_import_reloads_the_views(self):
+    self.form._plot_rows = {"C-r0"}
+    self.form._analytics_table_key = "C"
+    self.import_backup(type_word(" REPLACE "))
+    self.assertEqual(self.form._plot_rows, set())
+    self.assertIsNone(self.form._analytics_table_key)
+    self.assertEqual(self.opened(), ["A"])
+    self.assertEqual(self.form.import_loader.cleared, 1)
+
+  def test_a_bad_file_is_refused_before_any_dialog(self):
+    state.alert_answers = [type_word("REPLACE")]
+    self.form.import_loader_change(file=BlobMedia("text/plain", b"nope", name="x.txt"))
+    self.assertEqual(state.alerts, [])
+    self.assertIn("isn't an inventory export", state.notifications[-1])
+    self.assertEqual(inv._current_tables(), self.before)
+
+  def test_failures_say_so(self):
+    state.routes["preview_inventory_import"] = boom
+    self.import_backup()
+    self.assertEqual(state.notifications[-1], self.mf.IMPORT_CHECK_FAILED["message"])
+    del state.routes["preview_inventory_import"]
+    state.routes["import_inventory"] = boom
+    self.import_backup(type_word("REPLACE"))
+    self.assertEqual(state.notifications[-1], self.mf.IMPORT_FAILED["message"])
+
+  def test_accounts_without_initials_cannot_import(self):
+    state.user["initials"] = None
+    self.form.refresh_button_click()
+    self.import_backup(type_word("REPLACE"))
+    self.assertIn("needs initials", state.notifications[-1])
+    self.assertEqual(state.alerts, [])
+    self.assertEqual(inv._current_tables(), self.before)
 
 
 class SignInTest(unittest.TestCase):

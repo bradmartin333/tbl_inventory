@@ -821,6 +821,38 @@ input.anvil-role-matrix-quantity {
   font-size: 13px;
 }
 
+.admin-warning {
+  margin: 8px 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--par-low);
+  border-radius: 4px;
+  background: var(--par-low-bg);
+  color: var(--par-low);
+  font-size: 14px;
+}
+
+/* The FileLoader's clickable part, styled like a secondary button. */
+.anvil-role-import-file label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  margin: 0;
+  padding: 0 16px;
+  border: 1px solid var(--blank-border);
+  border-radius: 6px;
+  background: var(--blank-surface);
+  color: var(--blank-primary-dark);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.admin-future-card {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--blank-border);
+}
+
 .anvil-role-analytics-empty {
   padding: 8px 0;
   color: var(--blank-muted);

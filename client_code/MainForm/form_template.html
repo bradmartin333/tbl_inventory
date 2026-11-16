@@ -13,7 +13,7 @@
             <anvil-component type="Button" name="guided_tab_button" prop:text="Guided entry" prop:role="workspace-tab"></anvil-component>
             <anvil-component type="Button" name="customize_tab_button" prop:text="Customize" prop:role="workspace-tab"></anvil-component>
             <anvil-component type="Button" name="analytics_tab_button" prop:text="Analytics" prop:role="workspace-tab"></anvil-component>
-            <anvil-component type="Button" name="email_tab_button" prop:text="Email" prop:role="workspace-tab"></anvil-component>
+            <anvil-component type="Button" name="admin_tab_button" prop:text="Admin" prop:role="workspace-tab"></anvil-component>
             <anvil-component type="Button" name="refresh_button" prop:text="Refresh" prop:role="refresh-button"></anvil-component>
         </nav>
     
@@ -140,17 +140,23 @@ Large containers"></anvil-component>
           </div>
         </anvil-component>
 
-        <anvil-component type="ColumnPanel" name="email_panel" prop:role="workspace-panel">
-          <div class="future-feature-card">
-              <p class="inventory-kicker">feature</p>
-              <h2>Weekly digest and alert emails</h2>
-              <p>A scheduled job could send a weekly summary of inventory changes to your team, and the on-par alerts on the Analytics tab could email the people you choose.</p>
-              <span class="feature-status">Can easily be integrated with a Google account</span>
+        <anvil-component type="ColumnPanel" name="admin_panel" prop:role="workspace-panel">
+          <h2 class="workspace-panel-heading">Admin</h2>
+          <div class="analytics-card analytics-card-first">
+              <h3>Export all data</h3>
+              <p class="setup-hint">Downloads one file with every section, item, column, current count, on-par level and the full count history. It also lists each user's email, initials and whether their account is enabled. Anyone with the file can read all of it, so keep it somewhere private. Passwords aren't included.</p>
+              <anvil-component type="Button" name="export_button" prop:text="Export all data" prop:role="secondary-button"></anvil-component>
           </div>
-          <div class="future-feature-card">
+          <div class="analytics-card">
+              <h3>Import data</h3>
+              <p class="admin-warning"><strong>Caution:</strong> importing deletes all inventory data in the app, for everyone, and replaces it with the file's contents, including count history. It can't be undone. Export a backup first.</p>
+              <p class="setup-hint">Only files made with Export all data can be imported. You'll see what the file holds and confirm before anything changes. Users already in this app are left as they are; users in the file who aren't here are added, and each sets a password with Activate account at login.</p>
+              <anvil-component type="FileLoader" name="import_loader" prop:text="Choose export file to import…" prop:file_types=".json,application/json" prop:role="import-file"></anvil-component>
+          </div>
+          <div class="future-feature-card admin-future-card">
               <p class="inventory-kicker">feature</p>
               <h2>Admin roles and permissions</h2>
-              <p>Give each account a role. Counters enter quantities; admins also change sections, rows and columns, and manage alerts. The server checks the role on every change, so only admins can rewrite the setup.</p>
+              <p>Give each account a role. Counters enter quantities; admins also change sections, rows and columns, manage alerts, and export or import data. The server checks the role on every change, so only admins can rewrite the setup.</p>
               <span class="feature-status">Needs a role on each user account</span>
           </div>
         </anvil-component>

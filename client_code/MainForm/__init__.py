@@ -2,6 +2,7 @@ from ._anvil_designer import MainFormTemplate
 from anvil import *
 import anvil.users
 import anvil.server
+import anvil.media
 from anvil.js import window
 import time
 from datetime import datetime
@@ -27,6 +28,21 @@ ITEM_COLORS = ["#2a78d6", "#d9622b", "#2f9e6f", "#8a5cc2", "#c9a227", "#d6457a",
 PLOT_HINT = "Each ticked item's count in the column above, as it stood at the end of each day."
 PLOT_INSTRUCTIONS = "Tick the Plot box beside one or more items in the table above to chart their history here."
 ITEM_HINT = PLOT_HINT
+
+EXPORT_FAILED = "The export didn't download. Check your connection and try again."
+IMPORT_CHECK_FAILED = {
+  "ok": False,
+  "message": "That file couldn't be checked, so nothing was changed. Check your connection and try again.",
+}
+# A call that errors may still have finished on the server, so don't promise
+# either way; the reload after it shows which.
+IMPORT_FAILED = {
+  "ok": False,
+  "message": (
+    "The import may not have finished. The grid now shows what the app holds; "
+    "check it before trying again."
+  ),
+}
 
 
 def _totals_layout():
@@ -187,14 +203,14 @@ class MainForm(MainFormTemplate):
       "guided": self.guided_panel,
       "customize": self.table_editor_panel,
       "analytics": self.analytics_panel,
-      "email": self.email_panel,
+      "admin": self.admin_panel,
     }
     buttons = {
       "grid": self.grid_tab_button,
       "guided": self.guided_tab_button,
       "customize": self.customize_tab_button,
       "analytics": self.analytics_tab_button,
-      "email": self.email_tab_button,
+      "admin": self.admin_tab_button,
     }
 
     for tab_name, panel in panels.items():
@@ -703,9 +719,111 @@ class MainForm(MainFormTemplate):
     self._column_key = self.column_dropdown.selected_value
     self._render_column()
 
-  @handle("email_tab_button", "click")
-  def email_tab_button_click(self, **event_args):
-    self._set_active_tab("email")
+  @handle("admin_tab_button", "click")
+  def admin_tab_button_click(self, **event_args):
+    self._set_active_tab("admin")
+
+  def _export_all(self):
+    try:
+      media = anvil.server.call("export_inventory")
+    except Exception:
+      self._show_error(EXPORT_FAILED)
+      return False
+    anvil.media.download(media)
+    return True
+
+  @handle("export_button", "click")
+  def export_button_click(self, **event_args):
+    self._export_all()
+
+  @handle("import_loader", "change")
+  def import_loader_change(self, file, **event_args):
+    try:
+      self._import_file(file)
+    finally:
+      # Picking the same file again must still start a fresh import.
+      self.import_loader.clear()
+
+  def _import_file(self, file):
+    if file is None:
+      return
+    if not self._can_enter:
+      self._show_error("Your account needs initials before it can import data.")
+      return
+    try:
+      preview = anvil.server.call("preview_inventory_import", file)
+    except Exception:
+      preview = IMPORT_CHECK_FAILED
+    if not preview["ok"]:
+      self._show_error(preview["message"])
+      return
+    if not self._confirm_import(preview, file.name):
+      return
+    try:
+      result = anvil.server.call("import_inventory", file, preview["confirm_word"])
+    except Exception:
+      result = IMPORT_FAILED
+    if result["ok"]:
+      # Keys from the old data mean nothing now; start the views afresh.
+      self._snapshot = None
+      self._plot_rows = set()
+      self._analytics_table_key = None
+      self._column_key = None
+      self._wizard_cells = []
+    self._load_latest_counts()
+    if not result["ok"]:
+      self._show_error(result["message"])
+      return
+    added = result["users_added"]
+    users_note = ""
+    if added:
+      users_note = (
+        f" Added {added} user account{'' if added == 1 else 's'}. "
+        f"{'It needs' if added == 1 else 'Each needs'} to choose Activate account at login "
+        "to set a password."
+      )
+    alert(
+      f"The app now holds {result['summary_text']}.{users_note} "
+      "Anyone else using it should reload the page before entering counts.",
+      title="Import complete",
+    )
+
+  def _confirm_import(self, preview, file_name):
+    # A destructive, can't-undo step for everyone, so it shows what goes and
+    # what comes, offers a backup, and takes a typed word, not just a click.
+    word = preview["confirm_word"]
+    message = Label(text=(
+      f"This deletes ALL inventory data in the app, for everyone, and replaces it with "
+      f"{file_name or 'the chosen file'} (exported {preview['exported_text']}).\n\n"
+      f"Deleted now: {preview['current_text']}.\n\n"
+      f"Imported: {preview['incoming_text']}.\n\n"
+      f"Users: {preview['users_text']}.\n\n"
+      "This can't be undone. If you might need what's in the app today, export a backup first.\n\n"
+      f"Type {word} to continue."
+    ))
+    word_box = TextBox(placeholder=f"Type {word}")
+    error_label = Label(foreground="#b3261e", visible=False)
+    panel = ColumnPanel()
+    panel.add_component(message)
+    panel.add_component(word_box)
+    panel.add_component(error_label)
+    while True:
+      choice = alert(
+        panel,
+        title="Replace all inventory data?",
+        buttons=[("Replace everything", "replace"), ("Export backup first", "export"), ("Cancel", None)],
+        large=True,
+      )
+      if choice is None:
+        return False
+      if choice == "export":
+        error_label.visible = False
+        self._export_all()
+        continue
+      if (word_box.text or "").strip() == word:
+        return True
+      error_label.text = f"Type {word} in capitals to confirm, or press Cancel."
+      error_label.visible = True
 
   @handle("logout_button", "click")
   def logout_button_click(self, **event_args):
